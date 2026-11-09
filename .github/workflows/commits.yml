@@ -1,0 +1,39 @@
+name: commits
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cocogitto
+      - name: commit messages
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # New branches have no "before" commit: check what isn't on main yet.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git merge-base HEAD origin/main 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          fi
+          if [ "$(git rev-list --count "$BASE..HEAD")" = "0" ]; then echo "no new commits"; exit 0; fi
+          cog check "$BASE..HEAD"
+      - name: branch name
+        if: github.event_name == 'push'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if ! echo "$BRANCH" | grep -Eq '^(main|release/v[0-9]+\.[0-9]+\.[0-9]+|(feat|fix|docs|chore|ci|refactor|perf|test|build)/[a-z0-9._-]+|dependabot/.+)$'; then
+            echo "branch '$BRANCH' doesn't follow the naming rules (see CONTRIBUTING.md)" >&2
+            exit 1
+          fi
