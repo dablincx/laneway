@@ -33,7 +33,9 @@ Rules for Claude working on laneway. Read this first in every session.
 - Update `TODO.md` in the same commit that finishes or adds something. New gaps, shortcuts and ideas
   go in as unchecked items right away.
 - Every feature ships with tests, every bug fix with a regression test that fails without the fix.
-- Versions: `./dev.sh bump <major|minor|patch>`, only on `main`, never on a feature branch. The
+- Versions: `./dev.sh bump <major|minor|patch>`, only on `main`, never on a feature branch, and
+  **only after the maintainer approved that specific bump** (they may want to add something first).
+  Ask every time, also for patch bumps in the bug-hunt loop. The
   `bump:` commit on main triggers the release workflow (changelog, tag, `release/vX.Y.Z`, images on
   ghcr.io, GitHub Release).
 - After each finished feature: bug hunt (clippy, tests, reread the diff, edge cases, permissions,
