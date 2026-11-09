@@ -29,7 +29,7 @@ Invalid values stop laneway at startup with a message naming the variable.
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `LANEWAY_HTTP_PORT` | integer (1-65535) | `3000` | Port the app listens on inside the container. Env var only. Example: `3000` |
-| `LANEWAY_TRUST_PROXY_HEADERS` | boolean (`true` or `false`) | `false` | Trust `X-Forwarded-For` / `X-Forwarded-Proto` headers. Only turn this on behind a reverse proxy that sets them, otherwise clients can fake their IP. Example: `false` |
+| `LANEWAY_TRUST_PROXY_HEADERS` | boolean (`true` or `false`) | `false` | Trust the `X-Forwarded-For` header from a reverse proxy. Turn this on behind a reverse proxy that sets it, so laneway sees real client IPs (sessions list, per-IP login limit). Leave it off without a proxy, otherwise clients can fake their IP. Example: `false` |
 
 ## Storage
 

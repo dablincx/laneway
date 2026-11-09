@@ -345,8 +345,9 @@ settings! {
         example: "3000",
     }
 
-    /// Trust `X-Forwarded-For` / `X-Forwarded-Proto` headers. Only turn this on behind a
-    /// reverse proxy that sets them, otherwise clients can fake their IP.
+    /// Trust the `X-Forwarded-For` header from a reverse proxy. Turn this on behind a reverse proxy
+    /// that sets it, so laneway sees real client IPs (sessions list, per-IP login limit). Leave it
+    /// off without a proxy, otherwise clients can fake their IP.
     trust_proxy_headers: bool {
         env: "LANEWAY_TRUST_PROXY_HEADERS",
         area: Http,
