@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use laneway_config::{Config, SETTINGS, Source};
 
+use crate::settings::{self, SettingsCommand};
 use crate::{http, logging, worker};
 
 /// Paths of the generated config files, relative to the repo root.
@@ -29,6 +30,11 @@ enum Command {
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
+    },
+    /// Settings stored in the database (until the settings UI exists).
+    Settings {
+        #[command(subcommand)]
+        command: SettingsCommand,
     },
     /// Translation tools.
     I18n {
@@ -68,6 +74,7 @@ pub async fn run(cli: Cli) -> Result<ExitCode> {
         Command::Health => health(),
         Command::Config { command: ConfigCommand::Check } => check(),
         Command::Config { command: ConfigCommand::Docs { check, root } } => docs(&root, check),
+        Command::Settings { command } => settings::run(command).await,
         Command::I18n { command: I18nCommand::Check { root } } => Ok(i18n_check(&root)),
     }
 }
@@ -90,6 +97,7 @@ async fn serve() -> Result<ExitCode> {
     let pool = laneway_db::connect(config.database_url.as_str(), config.database_max_connections).await?;
     laneway_db::migrate(&pool).await?;
     tracing::info!("database ready");
+    let config = settings::load_with_database(&pool, &config).await?;
 
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
     let mut tasks = tokio::task::JoinSet::new();

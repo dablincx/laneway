@@ -3,6 +3,7 @@
 mod cli;
 mod http;
 mod logging;
+mod settings;
 mod worker;
 
 use std::process::ExitCode;

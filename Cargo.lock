@@ -1112,6 +1112,7 @@ dependencies = [
  "clap",
  "http-body-util",
  "laneway-config",
+ "laneway-core",
  "laneway-db",
  "laneway-i18n",
  "laneway-jobs",
