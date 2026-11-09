@@ -1,7 +1,29 @@
+import {
+  closestCorners,
+  DndContext,
+  type DragEndEvent,
+  type DragOverEvent,
+  DragOverlay,
+  type DragStartEvent,
+  type KeyboardCoordinateGetter,
+  KeyboardSensor,
+  MeasuringStrategy,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  horizontalListSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, redirect } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { Check, GripVertical, Settings2 } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { boardApi, boardQuery, type Card, type Column } from "@/api/boards";
 import { errorMessage } from "@/api/errors";
@@ -13,6 +35,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/i18n";
+import {
+  type Layout,
+  layoutOf,
+  moveCard as moveCardIn,
+  moveColumn as moveColumnIn,
+  placeOf,
+} from "@/lib/board-layout";
 import { rootRoute } from "./root";
 import { meQuery } from "./session";
 
@@ -28,10 +57,32 @@ function useBoardMutation<A extends unknown[]>(boardId: string, fn: (...args: A)
 function BoardPage() {
   const { boardId } = boardRoute.useParams();
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const board = useQuery(boardQuery(boardId));
   const [openCard, setOpenCard] = useState<string | null>(null);
+  const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  // While dragging (and until the server has the result) the board shows this layout.
+  const [dragLayout, setDragLayoutState] = useState<Layout | null>(null);
+  // dnd-kit can call a handler from an earlier render (the keyboard sensor does), so the
+  // handlers read the layout from here instead of from the render they were made in.
+  const dragLayoutRef = useRef<Layout | null>(null);
+  const setDragLayout = (next: Layout | null | ((current: Layout | null) => Layout | null)) => {
+    dragLayoutRef.current = typeof next === "function" ? next(dragLayoutRef.current) : next;
+    setDragLayoutState(dragLayoutRef.current);
+  };
+  const [activeId, setActiveId] = useState<string | null>(null);
   const addColumn = useBoardMutation(boardId, (name: string) => boardApi.addColumn(boardId, name));
   const rename = useBoardMutation(boardId, (name: string) => boardApi.rename(boardId, name));
+  const moveError = useMutation({ mutationFn: async (e: unknown) => Promise.reject(e) });
+  const sensors = useSensors(
+    // A few pixels of movement before a drag starts, so clicks still open cards.
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: (event, args) => columnKeyboardCoordinates(event, args, dragLayoutRef.current),
+      // Enter opens a card, space picks it up.
+      keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space", "Enter"] },
+    }),
+  );
 
   if (board.isError) {
     return (
@@ -43,7 +94,97 @@ function BoardPage() {
   }
   if (!board.data) return null;
   const { columns, cards } = board.data;
-  const card = cards.find((c) => c.id === openCard);
+  const serverLayout = layoutOf(columns, cards);
+  const layout = dragLayout ?? serverLayout;
+  const columnById = new Map(columns.map((c) => [c.id, c]));
+  const cardById = new Map(cards.map((c) => [c.id, c]));
+  const card = openCard ? cardById.get(openCard) : undefined;
+  const settingsColumn = settingsFor ? columnById.get(settingsFor) : undefined;
+
+  const nameOf = (id: string | number | undefined) => {
+    if (id == null) return "";
+    const key = String(id);
+    if (key.startsWith(COLUMN)) return columnById.get(key.slice(COLUMN.length))?.name ?? "";
+    return cardById.get(key)?.title ?? "";
+  };
+  /** The column a drop target belongs to: the column itself or the column of a card. */
+  const columnOfTarget = (current: Layout, id: string) =>
+    id.startsWith(COLUMN) ? id.slice(COLUMN.length) : placeOf(current, id)?.columnId;
+
+  /** Shows `next` until the server has it, then goes back to the server's layout. */
+  const commit = async (next: Layout, request: () => Promise<unknown>) => {
+    setDragLayout(next);
+    try {
+      await request();
+    } catch (e) {
+      moveError.mutate(e);
+    }
+    await queryClient.invalidateQueries({ queryKey: ["board", boardId] });
+    // A new drag may have started meanwhile; its layout isn't ours to clear.
+    if (dragLayoutRef.current === next) setDragLayout(null);
+  };
+
+  const onDragStart = ({ active }: DragStartEvent) => {
+    moveError.reset();
+    setActiveId(String(active.id));
+    // A copy, so a save still running from the last drag can tell this layout isn't its own.
+    setDragLayout({ ...layout });
+  };
+
+  // Cards change columns while they are dragged, so the target column makes room.
+  const onDragOver = ({ active, over }: DragOverEvent) => {
+    const id = String(active.id);
+    if (!over || id.startsWith(COLUMN)) return;
+    setDragLayout((current) => {
+      if (!current) return current;
+      const from = placeOf(current, id);
+      const toColumn = columnOfTarget(current, String(over.id));
+      if (!from || !toColumn || from.columnId === toColumn) return current;
+      const overPlace = placeOf(current, String(over.id));
+      const index = overPlace ? overPlace.index : (current.cards[toColumn]?.length ?? 0);
+      return moveCardIn(current, id, toColumn, index);
+    });
+  };
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setActiveId(null);
+    const id = String(active.id);
+    const current = dragLayoutRef.current ?? layout;
+    if (!over) {
+      setDragLayout(null);
+      return;
+    }
+    if (id.startsWith(COLUMN)) {
+      const columnId = id.slice(COLUMN.length);
+      const target = columnOfTarget(current, String(over.id));
+      const from = current.columns.indexOf(columnId);
+      const to = target ? current.columns.indexOf(target) : -1;
+      if (to === -1 || from === to) {
+        setDragLayout(null);
+        return;
+      }
+      void commit(moveColumnIn(current, columnId, to), () => boardApi.moveColumn(columnId, to));
+      return;
+    }
+    let next = current;
+    const place = placeOf(current, id);
+    const overPlace = placeOf(current, String(over.id));
+    if (place && overPlace && place.columnId === overPlace.columnId && place.index !== overPlace.index) {
+      next = moveCardIn(current, id, place.columnId, overPlace.index);
+    }
+    const final = placeOf(next, id);
+    const before = placeOf(serverLayout, id);
+    if (!final || (before && before.columnId === final.columnId && before.index === final.index)) {
+      setDragLayout(null);
+      return;
+    }
+    void commit(next, () => boardApi.moveCard(id, final.columnId, final.index));
+  };
+
+  const activeCard = activeId ? cardById.get(activeId) : undefined;
+  const activeColumn = activeId?.startsWith(COLUMN)
+    ? columnById.get(activeId.slice(COLUMN.length))
+    : undefined;
 
   return (
     <div className="flex h-screen flex-col">
@@ -56,121 +197,205 @@ function BoardPage() {
         />
       </AppHeader>
       <FormError message={rename.isError ? errorMessage(t, rename.error) : null} />
-      <main className="flex flex-1 gap-3 overflow-x-auto p-4">
-        {columns.map((column, index) => (
-          <ColumnView
-            key={column.id}
-            boardId={boardId}
-            column={column}
-            index={index}
-            columnCount={columns.length}
-            cards={cards.filter((c) => c.column_id === column.id)}
-            onOpenCard={setOpenCard}
-          />
-        ))}
-        <form
-          className="flex w-72 shrink-0 flex-col gap-2 self-start"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            addColumn.mutate([String(new FormData(form).get("name") ?? "")], {
-              onSuccess: () => form.reset(),
-            });
-          }}
-        >
-          <Input name="name" aria-label={t("column-new-name")} placeholder={t("column-new-name")} required />
-          <FormError message={addColumn.isError ? errorMessage(t, addColumn.error) : null} />
-        </form>
-      </main>
+      <FormError message={moveError.isError ? errorMessage(t, moveError.error) : null} />
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        // Cards jump between columns while dragging, so positions are measured on every move,
+        // not just when the drag starts (else the next arrow key works from stale positions).
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => {
+          setActiveId(null);
+          setDragLayout(null);
+        }}
+        accessibility={{
+          screenReaderInstructions: { draggable: t("dnd-instructions") },
+          announcements: {
+            onDragStart: ({ active }) => t("dnd-picked-up", { item: nameOf(active.id) }),
+            // Right after picking something up it is "over" itself; that isn't worth saying.
+            onDragOver: ({ active, over }) =>
+              over && over.id !== active.id
+                ? t("dnd-over", { item: nameOf(active.id), target: nameOf(over.id) })
+                : undefined,
+            onDragEnd: ({ active, over }) =>
+              over
+                ? t("dnd-dropped", { item: nameOf(active.id), target: nameOf(over.id) })
+                : t("dnd-dropped-nowhere", { item: nameOf(active.id) }),
+            onDragCancel: ({ active }) => t("dnd-cancelled", { item: nameOf(active.id) }),
+          },
+        }}
+      >
+        <main className="flex flex-1 gap-3 overflow-x-auto p-4">
+          <SortableContext
+            items={layout.columns.map((id) => COLUMN + id)}
+            strategy={horizontalListSortingStrategy}
+          >
+            {layout.columns.map((columnId) => {
+              const column = columnById.get(columnId);
+              if (!column) return null;
+              const columnCards = (layout.cards[columnId] ?? []).flatMap((cid) => cardById.get(cid) ?? []);
+              return (
+                <ColumnView
+                  key={columnId}
+                  boardId={boardId}
+                  column={column}
+                  cards={columnCards}
+                  onOpenCard={setOpenCard}
+                  onSettings={() => setSettingsFor(columnId)}
+                />
+              );
+            })}
+          </SortableContext>
+          <form
+            className="flex w-72 shrink-0 flex-col gap-2 self-start"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              addColumn.mutate([String(new FormData(form).get("name") ?? "")], {
+                onSuccess: () => form.reset(),
+              });
+            }}
+          >
+            <Input
+              name="name"
+              aria-label={t("column-new-name")}
+              placeholder={t("column-new-name")}
+              required
+            />
+            <FormError message={addColumn.isError ? errorMessage(t, addColumn.error) : null} />
+          </form>
+        </main>
+        <DragOverlay>
+          {activeCard ? <CardFace card={activeCard} className="shadow-lg" /> : null}
+          {activeColumn ? (
+            <div className="w-72 rounded-lg border bg-muted px-3 py-2 text-sm font-medium shadow-lg">
+              {activeColumn.name}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
       {card && (
         <CardDialog boardId={boardId} card={card} columns={columns} onClose={() => setOpenCard(null)} />
+      )}
+      {settingsColumn && (
+        <ColumnSettingsDialog
+          boardId={boardId}
+          column={settingsColumn}
+          cardCount={layout.cards[settingsColumn.id]?.length ?? 0}
+          onClose={() => setSettingsFor(null)}
+        />
       )}
     </div>
   );
 }
 
+/** Sortable ids of columns start with this, card ids are plain UUIDs. */
+const COLUMN = "column:";
+
+/**
+ * Arrow keys while dragging with the keyboard: left and right go to the next column (dnd-kit's
+ * default only looks at positions, and a card that just changed columns is in its own way),
+ * up and down move within the column as usual.
+ */
+function columnKeyboardCoordinates(
+  event: KeyboardEvent,
+  args: Parameters<KeyboardCoordinateGetter>[1],
+  layout: Layout | null,
+): ReturnType<KeyboardCoordinateGetter> {
+  const { active, over, droppableRects, collisionRect } = args.context;
+  const step = event.code === "ArrowRight" ? 1 : event.code === "ArrowLeft" ? -1 : 0;
+  if (step === 0 || !layout || !active || !collisionRect) return sortableKeyboardCoordinates(event, args);
+  // Where the dragged thing is now: a card's column, or the column a dragged column is over.
+  const at = String(over?.id ?? active.id);
+  const columnId = at.startsWith(COLUMN) ? at.slice(COLUMN.length) : placeOf(layout, at)?.columnId;
+  const next = columnId ? layout.columns[layout.columns.indexOf(columnId) + step] : undefined;
+  const rect = next ? droppableRects.get(COLUMN + next) : undefined;
+  if (!rect) return undefined;
+  event.preventDefault();
+  const isColumn = String(active.id).startsWith(COLUMN);
+  // Cards go just below the column header, so the column itself is what they're over.
+  return {
+    x: rect.left + (rect.width - collisionRect.width) / 2,
+    y: isColumn ? rect.top : rect.top + 8,
+  };
+}
+
 function ColumnView({
   boardId,
   column,
-  index,
-  columnCount,
   cards,
   onOpenCard,
+  onSettings,
 }: {
   boardId: string;
   column: Column;
-  index: number;
-  columnCount: number;
   cards: Card[];
   onOpenCard: (id: string) => void;
+  onSettings: () => void;
 }) {
   const { t } = useI18n();
   const addCard = useBoardMutation(boardId, (title: string) => boardApi.addCard(column.id, title));
-  const rename = useBoardMutation(boardId, (name: string) => boardApi.renameColumn(column.id, name));
-  const move = useBoardMutation(boardId, (to: number) => boardApi.moveColumn(column.id, to));
-  const remove = useBoardMutation(boardId, () => boardApi.deleteColumn(column.id));
-  const error = [addCard, rename, move, remove].find((m) => m.isError)?.error;
+  const rename = useBoardMutation(boardId, (name: string) => boardApi.updateColumn(column.id, { name }));
+  const error = [addCard, rename].find((m) => m.isError)?.error;
   const overLimit = column.wip_limit != null && cards.length > column.wip_limit;
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
+    useSortable({ id: COLUMN + column.id });
 
   return (
     <section
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       aria-label={column.name}
-      className="flex max-h-full w-72 shrink-0 flex-col gap-2 self-start rounded-lg border bg-muted/40 p-2"
+      className={`flex max-h-full w-72 shrink-0 flex-col gap-2 self-start rounded-lg border bg-muted/40 p-2 ${
+        isDragging ? "opacity-50" : ""
+      } ${overLimit ? "border-destructive" : ""}`}
     >
       <div className="flex items-center gap-1">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          aria-label={t("column-drag")}
+          className="cursor-grab rounded p-1 text-muted-foreground hover:bg-accent"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" />
+        </button>
         <InlineEdit
           label={t("column-rename")}
           value={column.name}
           onSave={(name) => rename.mutate([name])}
           className="flex-1 text-sm font-medium"
         />
-        <span className={overLimit ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+        {column.is_done && (
+          <Check className="size-4 text-muted-foreground" aria-label={t("column-field-done")} />
+        )}
+        <span
+          className={overLimit ? "text-xs font-medium text-destructive" : "text-xs text-muted-foreground"}
+          title={overLimit ? t("column-over-limit") : undefined}
+        >
           {column.wip_limit != null ? `${cards.length}/${column.wip_limit}` : cards.length}
         </span>
         <Button
           variant="ghost"
           size="icon"
           className="size-7 text-muted-foreground"
-          aria-label={t("column-move-left")}
-          disabled={index === 0}
-          onClick={() => move.mutate([index - 1])}
+          aria-label={t("column-settings")}
+          onClick={onSettings}
         >
-          <ChevronLeft className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 text-muted-foreground"
-          aria-label={t("column-move-right")}
-          disabled={index === columnCount - 1}
-          onClick={() => move.mutate([index + 1])}
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 text-muted-foreground"
-          aria-label={t("column-delete")}
-          disabled={cards.length > 0}
-          onClick={() => remove.mutate([])}
-        >
-          <Trash2 className="size-4" />
+          <Settings2 className="size-4" />
         </Button>
       </div>
-      <ul className="flex flex-col gap-2 overflow-y-auto">
-        {cards.map((card) => (
-          <li key={card.id}>
-            <button
-              type="button"
-              onClick={() => onOpenCard(card.id)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-left text-sm shadow-xs hover:bg-accent"
-            >
-              {card.title}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+        <ul className="flex min-h-2 flex-col gap-2 overflow-y-auto">
+          {cards.map((card) => (
+            <SortableCard key={card.id} card={card} onOpen={() => onOpenCard(card.id)} />
+          ))}
+        </ul>
+      </SortableContext>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -182,6 +407,145 @@ function ColumnView({
       </form>
       <FormError message={error ? errorMessage(t, error) : null} />
     </section>
+  );
+}
+
+function SortableCard({ card, onOpen }: { card: Card; onOpen: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: card.id,
+  });
+  return (
+    <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`w-full text-left ${isDragging ? "opacity-50" : ""}`}
+        {...attributes}
+        {...listeners}
+      >
+        <CardFace card={card} />
+      </button>
+    </li>
+  );
+}
+
+function CardFace({ card, className }: { card: Card; className?: string }) {
+  const { t } = useI18n();
+  return (
+    <div
+      className={`flex items-start gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent ${
+        className ?? ""
+      }`}
+    >
+      <span className={`flex-1 ${card.completed_at ? "text-muted-foreground line-through" : ""}`}>
+        {card.title}
+      </span>
+      {card.completed_at && (
+        <Check className="size-4 shrink-0 text-muted-foreground" aria-label={t("card-done")} />
+      )}
+    </div>
+  );
+}
+
+function ColumnSettingsDialog({
+  boardId,
+  column,
+  cardCount,
+  onClose,
+}: {
+  boardId: string;
+  column: Column;
+  cardCount: number;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const save = useBoardMutation(boardId, (changes: Parameters<typeof boardApi.updateColumn>[1]) =>
+    boardApi.updateColumn(column.id, changes),
+  );
+  const remove = useBoardMutation(boardId, () => boardApi.deleteColumn(column.id));
+  const error = [save, remove].find((m) => m.isError)?.error;
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent aria-describedby={undefined}>
+        <DialogTitle>{t("column-settings")}</DialogTitle>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = new FormData(e.currentTarget);
+            const limit = String(form.get("wip_limit") ?? "").trim();
+            save.mutate(
+              [
+                {
+                  name: String(form.get("name") ?? ""),
+                  wip_limit: limit === "" ? null : Number(limit),
+                  is_done: form.get("is_done") === "on",
+                },
+              ],
+              { onSuccess: onClose },
+            );
+          }}
+        >
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="column-name">{t("column-field-name")}</Label>
+            <Input id="column-name" name="name" defaultValue={column.name} required />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="column-wip-limit">{t("column-field-wip-limit")}</Label>
+            <Input
+              id="column-wip-limit"
+              name="wip_limit"
+              type="number"
+              min={1}
+              step={1}
+              defaultValue={column.wip_limit ?? ""}
+              aria-describedby="column-wip-limit-hint"
+            />
+            <p id="column-wip-limit-hint" className="text-xs text-muted-foreground">
+              {t("column-field-wip-limit-hint")}
+            </p>
+          </div>
+          <div className="flex items-start gap-2">
+            <input
+              id="column-done"
+              name="is_done"
+              type="checkbox"
+              defaultChecked={column.is_done}
+              className="mt-1 size-4"
+              aria-describedby="column-done-hint"
+            />
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="column-done">{t("column-field-done")}</Label>
+              <p id="column-done-hint" className="text-xs text-muted-foreground">
+                {t("column-field-done-hint")}
+              </p>
+            </div>
+          </div>
+          <FormError message={error ? errorMessage(t, error) : null} />
+          <div className="flex justify-between gap-2">
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={cardCount > 0}
+              onClick={() => remove.mutate([], { onSuccess: onClose })}
+            >
+              {t("column-delete")}
+            </Button>
+            <div className="flex gap-2">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  {t("common-cancel")}
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={save.isPending}>
+                {t("common-save")}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
