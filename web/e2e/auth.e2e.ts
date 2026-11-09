@@ -45,7 +45,7 @@ test("setup rejects a wrong token", async ({ page }) => {
 test("setup with the token from the log creates the admin", async ({ page }) => {
   await page.goto("/setup");
   await fillSetup(page, setupToken());
-  await expect(page.getByText(en("home-welcome", { name: admin.name }))).toBeVisible();
+  await expect(page.getByRole("heading", { name: en("board-list-heading") })).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -56,12 +56,12 @@ test("setup page is gone once the admin exists", async ({ page }) => {
 
 test("log in with the username", async ({ page }) => {
   await logIn(page, admin.username, admin.password);
-  await expect(page.getByText(en("home-welcome", { name: admin.name }))).toBeVisible();
+  await expect(page.getByRole("heading", { name: en("board-list-heading") })).toBeVisible();
 });
 
 test("log in with the email", async ({ page }) => {
   await logIn(page, admin.email, admin.password);
-  await expect(page.getByText(en("home-welcome", { name: admin.name }))).toBeVisible();
+  await expect(page.getByRole("heading", { name: en("board-list-heading") })).toBeVisible();
 });
 
 test("wrong password shows an error", async ({ page }) => {
@@ -94,7 +94,7 @@ test.describe("german ui", () => {
     await expect(page.getByRole("alert")).toHaveText(de("error-invalid-credentials"));
 
     await logIn(page, admin.username, admin.password, de("auth-login-submit"));
-    await expect(page.getByText(de("home-welcome", { name: admin.name }))).toBeVisible();
+    await expect(page.getByRole("heading", { name: de("board-list-heading") })).toBeVisible();
     await expect(page.getByRole("button", { name: de("auth-logout") })).toBeVisible();
   });
 });
