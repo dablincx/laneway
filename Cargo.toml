@@ -12,15 +12,12 @@ authors = ["laneway contributors"]
 publish = false
 
 [workspace.dependencies]
+laneway-auth = { path = "crates/auth" }
 laneway-config = { path = "crates/config" }
 laneway-core = { path = "crates/core" }
 laneway-db = { path = "crates/db" }
 laneway-jobs = { path = "crates/jobs" }
-laneway-git-store = { path = "crates/git-store" }
-laneway-auth = { path = "crates/auth" }
-laneway-mcp = { path = "crates/mcp" }
 laneway-i18n = { path = "crates/i18n" }
-laneway-notify = { path = "crates/notify" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
