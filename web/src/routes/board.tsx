@@ -296,9 +296,10 @@ function BoardPage() {
 const COLUMN = "column:";
 
 /**
- * Arrow keys while dragging with the keyboard: left and right go to the next column (dnd-kit's
- * default only looks at positions, and a card that just changed columns is in its own way),
- * up and down move within the column as usual.
+ * Arrow keys while dragging with the keyboard. dnd-kit's default guesses from positions, which
+ * goes wrong on a board (a card that just changed columns is in its own way, and the column
+ * itself competes with the card above). Here left and right go to the next column, up and down
+ * to the next card in the same column.
  */
 function columnKeyboardCoordinates(
   event: KeyboardEvent,
@@ -306,21 +307,39 @@ function columnKeyboardCoordinates(
   layout: Layout | null,
 ): ReturnType<KeyboardCoordinateGetter> {
   const { active, over, droppableRects, collisionRect } = args.context;
-  const step = event.code === "ArrowRight" ? 1 : event.code === "ArrowLeft" ? -1 : 0;
-  if (step === 0 || !layout || !active || !collisionRect) return sortableKeyboardCoordinates(event, args);
-  // Where the dragged thing is now: a card's column, or the column a dragged column is over.
+  const horizontal = event.code === "ArrowRight" ? 1 : event.code === "ArrowLeft" ? -1 : 0;
+  const vertical = event.code === "ArrowDown" ? 1 : event.code === "ArrowUp" ? -1 : 0;
+  if ((!horizontal && !vertical) || !layout || !active || !collisionRect) {
+    return sortableKeyboardCoordinates(event, args);
+  }
+  const activeId = String(active.id);
+  const isColumn = activeId.startsWith(COLUMN);
+  // Where the dragged thing is now: the card or column it is over, else itself.
   const at = String(over?.id ?? active.id);
   const columnId = at.startsWith(COLUMN) ? at.slice(COLUMN.length) : placeOf(layout, at)?.columnId;
-  const next = columnId ? layout.columns[layout.columns.indexOf(columnId) + step] : undefined;
-  const rect = next ? droppableRects.get(COLUMN + next) : undefined;
+  if (!columnId) return undefined;
+
+  if (horizontal) {
+    const next = layout.columns[layout.columns.indexOf(columnId) + horizontal];
+    const rect = next ? droppableRects.get(COLUMN + next) : undefined;
+    if (!rect) return undefined;
+    event.preventDefault();
+    // Cards go just below the column header, so the column itself is what they're over.
+    return { x: rect.left + (rect.width - collisionRect.width) / 2, y: isColumn ? rect.top : rect.top + 8 };
+  }
+
+  if (isColumn) return undefined;
+  const cards = layout.cards[columnId] ?? [];
+  let index = at.startsWith(COLUMN) ? (vertical > 0 ? -1 : cards.length) : cards.indexOf(at);
+  let next: string | undefined;
+  do {
+    index += vertical;
+    next = cards[index];
+  } while (next === activeId);
+  const rect = next ? droppableRects.get(next) : undefined;
   if (!rect) return undefined;
   event.preventDefault();
-  const isColumn = String(active.id).startsWith(COLUMN);
-  // Cards go just below the column header, so the column itself is what they're over.
-  return {
-    x: rect.left + (rect.width - collisionRect.width) / 2,
-    y: isColumn ? rect.top : rect.top + 8,
-  };
+  return { x: rect.left, y: rect.top };
 }
 
 function ColumnView({
