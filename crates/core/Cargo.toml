@@ -11,7 +11,7 @@ publish.workspace = true
 
 [dependencies]
 aes-gcm = "0.10.3"
-base64 = "0.22.1"
+base64 = "0.23.1"
 chrono = "0.4.45"
 hkdf = "0.12.4"
 laneway-auth.workspace = true
