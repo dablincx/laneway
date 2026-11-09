@@ -74,7 +74,7 @@ up() {
 cmd="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
-  help | -h | --help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help | -h | --help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0" ;;
   up) up ;;
   services) services ;;
   down) "${COMPOSE[@]}" down ;;
