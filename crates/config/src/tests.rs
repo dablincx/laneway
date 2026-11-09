@@ -152,6 +152,7 @@ fn bootstrap_settings_are_env_only() {
     assert_eq!(
         env_only,
         [
+            "LANEWAY_PUBLIC_URL",
             "LANEWAY_SECRET_KEY",
             "LANEWAY_PROCESS_ROLE",
             "LANEWAY_INITIAL_ADMIN_EMAIL",

@@ -394,6 +394,12 @@ pub fn literal_ui_text(source: &str) -> Vec<(usize, String)> {
         Regex::new(r"<[A-Za-z][\w.:-]*(?:\s[^<>]*)?>([^<>{}]+)(?:\{|$)").expect("valid regex")
     });
 
+    // Text-bearing attributes with a plain string value: `placeholder="Search"`.
+    static TEXT_ATTRIBUTE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"\b(?:placeholder|title|aria-label|alt)\s*=\s*(?:"([^"]*)"|'([^']*)')"#)
+            .expect("valid regex")
+    });
+
     let mut found = Vec::new();
     let mut previous_ends_with_tag = false;
     for (index, line) in source.lines().enumerate() {
@@ -410,6 +416,12 @@ pub fn literal_ui_text(source: &str) -> Vec<(usize, String)> {
                 .filter_map(|c| c.get(1).map(|m| m.as_str()))
                 .filter(|t| is_text(t))
                 .collect();
+            texts.extend(
+                TEXT_ATTRIBUTE
+                    .captures_iter(line)
+                    .filter_map(|c| c.get(1).or_else(|| c.get(2)).map(|m| m.as_str()))
+                    .filter(|t| is_text(t)),
+            );
             let after_tag = AFTER_OPENING_TAG.captures(trimmed).and_then(|c| c.get(1)).map(|m| m.as_str());
             if let Some(text) = after_tag
                 && is_text(text)
@@ -617,6 +629,17 @@ mod tests {
 
     fn texts(source: &str) -> Vec<(usize, String)> {
         literal_ui_text(source)
+    }
+
+    #[test]
+    fn literal_text_in_attributes() {
+        assert_eq!(texts(r#"<input placeholder="Search" />"#), [(1, "Search".to_owned())]);
+        assert_eq!(texts("<img alt='A cat' />"), [(1, "A cat".to_owned())]);
+        assert_eq!(texts(r#"<button aria-label="Close" title="Close it">"#).len(), 2);
+        // Translated values, empty values and other attributes are fine.
+        assert_eq!(texts(r#"<input placeholder={t("x")} aria-label={label} />"#), []);
+        assert_eq!(texts(r#"<img alt="" className="size-4" id="title" />"#), []);
+        assert_eq!(texts(r#"<input placeholder="Search" /> // i18n-ignore"#), []);
     }
 
     #[test]
