@@ -21,7 +21,7 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           args: >-
-            --no-progress --exclude-path 'docs/PLAN\.md'
+            --no-progress --exclude-loopback --exclude-path 'docs/PLAN\.md'
             README.md CONTRIBUTING.md SECURITY.md 'docs/**/*.md' 'examples/*' examples/.env.example
           output: lychee-report.md
           fail: false
