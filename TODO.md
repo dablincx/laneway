@@ -38,10 +38,7 @@ feature they belong to.
 - [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
 - [ ] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`); today only text nodes are checked
 - [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
-- [ ] Job queue: show jobs in the admin job monitor (v0.3)
-- [ ] Config: let required non-bootstrap settings (`LANEWAY_PUBLIC_URL`) come from the DB only; today the first env-only load still needs them in the env
 - [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
-- [ ] Config: settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
 - [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
 - [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
 - [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)
@@ -65,6 +62,8 @@ feature they belong to.
 
 - [ ] Registration modes, SMTP email (verification, reset, invites, login alerts)
 - [ ] TOTP 2FA, sessions list, admin panel, audit log, setup guide (§7, §14)
+- [ ] Admin job monitor (queued, running, failed jobs with their errors, retry button)
+- [ ] Settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
 - [ ] Workspaces, groups, roles + flags, board levels, resolver, sync toggle, `effective_access`, explain endpoints + UI (§8)
 - [ ] Workspace + board invites, "Shared with me"
 
