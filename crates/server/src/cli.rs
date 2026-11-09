@@ -25,6 +25,8 @@ enum Command {
     Serve,
     /// Check that the local app answers on /healthz (for Docker healthchecks).
     Health,
+    /// Print the OpenAPI spec of `/api/v1` as JSON (used to generate the web UI's API client).
+    Openapi,
     /// Configuration tools.
     Config {
         #[command(subcommand)]
@@ -66,6 +68,10 @@ pub async fn run(cli: Cli) -> Result<ExitCode> {
     match cli.command.unwrap_or(Command::Serve) {
         Command::Serve => serve().await,
         Command::Health => health(),
+        Command::Openapi => {
+            println!("{}", serde_json::to_string_pretty(&crate::api::openapi())?);
+            Ok(ExitCode::SUCCESS)
+        }
         Command::Config { command: ConfigCommand::Check } => check(),
         Command::Config { command: ConfigCommand::Docs { check, root } } => docs(&root, check),
         Command::I18n { command: I18nCommand::Check { root } } => Ok(i18n_check(&root)),
@@ -90,6 +96,13 @@ async fn serve() -> Result<ExitCode> {
     let pool = laneway_db::connect(config.database_url.as_str(), config.database_max_connections).await?;
     laneway_db::migrate(&pool).await?;
     tracing::info!("database ready");
+    if config.process_role.runs_app()
+        && let Some(token) = laneway_core::accounts::issue_setup_token(&pool).await?
+    {
+        let url =
+            config.public_url.join("setup").map_or_else(|_| config.public_url.to_string(), |u| u.to_string());
+        tracing::warn!("no admin yet. open {url} and use this one-time setup token: {token}");
+    }
 
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
     let mut tasks = tokio::task::JoinSet::new();

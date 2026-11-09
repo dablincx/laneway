@@ -11,7 +11,8 @@ publish.workspace = true
 
 [dependencies]
 chrono = { version = "0.4.45", features = ["serde"] }
-sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "macros", "migrate", "uuid", "chrono", "json"] }
+serde = { version = "1.0.229", features = ["derive"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "macros", "migrate", "uuid", "chrono", "json", "ipnetwork"] }
 thiserror = "2.0.21"
 tracing = "0.1.44"
 uuid = { version = "1.29.1", features = ["v7", "serde"] }

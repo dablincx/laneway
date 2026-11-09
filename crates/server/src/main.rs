@@ -1,5 +1,6 @@
 //! The `laneway` binary: web app + API, background worker, and maintenance commands.
 
+mod api;
 mod cli;
 mod http;
 mod logging;

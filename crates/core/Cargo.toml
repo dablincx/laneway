@@ -10,6 +10,17 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+chrono = "0.4.45"
+laneway-auth.workspace = true
+laneway-db.workspace = true
+sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "macros", "uuid", "chrono"] }
+thiserror = "2.0.21"
+tracing = "0.1.44"
+uuid = "1.29.2"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "macros", "migrate", "runtime-tokio"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
