@@ -1,6 +1,7 @@
 //! `/api/v1`. Every route is registered through `OpenApiRouter`, so the OpenAPI spec (and the
 //! TypeScript client generated from it) always matches the code.
 
+pub mod boards;
 pub mod error;
 pub mod limit;
 pub mod session;
@@ -30,7 +31,7 @@ use crate::http::AppState;
         description = "REST API of laneway. The web UI uses exactly this API.",
         license(name = "GPL-3.0-or-later", identifier = "GPL-3.0-or-later"),
     ),
-    tags((name = "instance"), (name = "auth"))
+    tags((name = "instance"), (name = "auth"), (name = "boards"))
 )]
 struct ApiDoc;
 
@@ -46,6 +47,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(login))
         .routes(routes!(logout))
         .routes(routes!(me))
+        .merge(boards::routes())
 }
 
 /// The OpenAPI document, with paths as served (under `/api/v1`).

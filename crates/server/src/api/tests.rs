@@ -173,3 +173,71 @@ async fn validation_errors_have_stable_codes(pool: PgPool) {
     body["email"] = json!("not-an-email");
     assert_eq!(api.post("/api/v1/setup", body).await.body["error"]["code"], "invalid_email");
 }
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn boards_columns_cards_over_http(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+
+    let created = api
+        .post(
+            "/api/v1/boards",
+            json!({"name": "Home", "columns": [{"name": "To do"}, {"name": "Done", "is_done": true}]}),
+        )
+        .await;
+    assert_eq!(created.status, StatusCode::CREATED, "{}", created.body);
+    let board_id = created.body["board"]["id"].as_str().unwrap().to_owned();
+    let todo = created.body["columns"][0]["id"].as_str().unwrap().to_owned();
+    let done = created.body["columns"][1]["id"].as_str().unwrap().to_owned();
+
+    let card = api.post(&format!("/api/v1/columns/{todo}/cards"), json!({"title": "Buy milk"})).await;
+    assert_eq!(card.status, StatusCode::CREATED, "{}", card.body);
+    let card_id = card.body["id"].as_str().unwrap().to_owned();
+
+    let moved =
+        api.post(&format!("/api/v1/cards/{card_id}/move"), json!({"column_id": done, "index": 0})).await;
+    assert_eq!(moved.status, StatusCode::OK, "{}", moved.body);
+    assert!(moved.body["completed_at"].is_string());
+
+    let patched = api
+        .call(
+            "PATCH",
+            &format!("/api/v1/cards/{card_id}"),
+            Some(json!({"title": "Buy oat milk"})),
+            Some(PUBLIC_URL),
+        )
+        .await;
+    assert_eq!(patched.body["title"], "Buy oat milk");
+
+    let view = api.get(&format!("/api/v1/boards/{board_id}")).await;
+    assert_eq!(view.body["cards"][0]["column_id"], done.as_str());
+    assert_eq!(api.get("/api/v1/boards").await.body.as_array().unwrap().len(), 1);
+
+    let not_empty = api.call("DELETE", &format!("/api/v1/columns/{done}"), None, Some(PUBLIC_URL)).await;
+    assert_eq!(
+        (not_empty.status, not_empty.body["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("column_not_empty"))
+    );
+
+    let history = api.get(&format!("/api/v1/boards/{board_id}/history?limit=2")).await;
+    let types: Vec<&str> =
+        history.body.as_array().unwrap().iter().map(|a| a["type"].as_str().unwrap()).collect();
+    assert_eq!(types, ["card.update", "card.move"]);
+
+    // Logged out: nothing.
+    api.cookie = None;
+    assert_eq!(api.get(&format!("/api/v1/boards/{board_id}")).await.status, StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn invalid_board_input_and_unknown_ids(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+    let bad = api.post("/api/v1/boards", json!({"name": "   "})).await;
+    assert_eq!(
+        (bad.status, bad.body["error"]["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("invalid_board_name"))
+    );
+    let missing = api.get(&format!("/api/v1/boards/{}", laneway_db::new_id())).await;
+    assert_eq!(missing.status, StatusCode::NOT_FOUND);
+}

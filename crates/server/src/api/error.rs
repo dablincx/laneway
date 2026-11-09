@@ -69,6 +69,14 @@ impl From<Error> for ApiError {
                     Invalid::PasswordTooLong => {
                         ("password_too_long", "the password can have at most 512 characters")
                     }
+                    Invalid::BoardName => ("invalid_board_name", "board names are 1-200 characters"),
+                    Invalid::ColumnName => ("invalid_column_name", "column names are 1-200 characters"),
+                    Invalid::CardTitle => ("invalid_card_title", "card titles are 1-500 characters"),
+                    Invalid::Description => {
+                        ("description_too_long", "descriptions can have at most 100000 characters")
+                    }
+                    Invalid::WipLimit => ("invalid_wip_limit", "the WIP limit must be at least 1"),
+                    Invalid::Position => ("invalid_position", "can't place it there"),
                 };
                 Self::new(S::UNPROCESSABLE_ENTITY, code, message)
             }
@@ -84,6 +92,9 @@ impl From<Error> for ApiError {
                 Self::new(S::CONFLICT, "username_taken", "that username is already taken")
             }
             Error::NotFound => Self::new(S::NOT_FOUND, "not_found", "not found"),
+            Error::ColumnNotEmpty => {
+                Self::new(S::CONFLICT, "column_not_empty", "move or delete the cards in this column first")
+            }
             Error::Auth(_) | Error::Database(_) => {
                 tracing::error!("internal error: {error}");
                 Self::new(S::INTERNAL_SERVER_ERROR, "internal", "something went wrong on the server")
