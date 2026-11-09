@@ -48,14 +48,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git cliff --tag "v$VERSION" -o CHANGELOG.md
+          bash scripts/release-notes.sh "$VERSION" release-notes.md
           git add CHANGELOG.md
           git commit -m "changelog: v$VERSION"
           git tag -a "v$VERSION" -m "v$VERSION"
           git branch "release/v$VERSION"
           git push origin HEAD:main "v$VERSION" "release/v$VERSION"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          git cliff --latest --strip all > release-notes.md
       - uses: actions/upload-artifact@v7
         with:
           name: release-notes

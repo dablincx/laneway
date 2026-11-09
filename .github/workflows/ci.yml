@@ -66,6 +66,9 @@ jobs:
       - name: version bump keeps generated files consistent
         if: matrix.arch == 'amd64'
         run: bash scripts/test-bump.sh
+      - name: release notes for a release with only internal changes
+        if: matrix.arch == 'amd64'
+        run: bash scripts/test-release-notes.sh
       - name: translations (laneway i18n check)
         if: matrix.arch == 'amd64'
         run: cargo run -q -p laneway-server -- i18n check
