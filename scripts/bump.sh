@@ -23,6 +23,8 @@ next="$major.$minor.$patch"
 sed -i "/^\[workspace.package\]/,/^\[/ s/^version = \".*\"/version = \"$next\"/" Cargo.toml
 sed -i "0,/\"version\": \".*\"/ s//\"version\": \"$next\"/" web/package.json
 cargo update --workspace -q
-git add Cargo.toml Cargo.lock web/package.json
+# The OpenAPI spec carries the version too (CI checks it's up to date).
+SQLX_OFFLINE=true cargo run -q -p laneway-server -- openapi > web/openapi.json
+git add Cargo.toml Cargo.lock web/package.json web/openapi.json
 git commit -q -m "bump: v$next"
 echo "bumped $current -> $next. push main to release: git push origin main"
