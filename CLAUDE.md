@@ -35,7 +35,8 @@ Rules for Claude working on laneway. Read this first in every session.
 - Every feature ships with tests, every bug fix with a regression test that fails without the fix.
 - Versions: `./dev.sh bump <major|minor|patch>`, only on `main`, never on a feature branch, and
   **only after the maintainer approved that specific bump** (they may want to add something first).
-  Ask every time, also for patch bumps in the bug-hunt loop. The
+  Ask every time, also for patch bumps in the bug-hunt loop, and include a short recap of what was
+  added and fixed since the last bump (e.g. from `git cliff --unreleased`). The
   `bump:` commit on main triggers the release workflow (changelog, tag, `release/vX.Y.Z`, images on
   ghcr.io, GitHub Release).
 - After each finished feature: bug hunt (clippy, tests, reread the diff, edge cases, permissions,
