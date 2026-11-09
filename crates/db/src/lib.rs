@@ -1,9 +1,12 @@
 //! laneway: database access. Postgres 18 only, plain SQL migrations in `migrations/`.
 
+pub mod actions;
+pub mod boards;
 pub mod sessions;
 pub mod settings;
 pub mod setup;
 pub mod users;
+pub mod workspaces;
 
 use std::time::Duration;
 
