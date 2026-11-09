@@ -22,7 +22,12 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
 - [ ] Job queue: show jobs in the admin job monitor (v0.3)
 - [ ] Config: DB settings layer wired to the `settings` table (encrypted secrets)
-- [ ] First-launch admin setup (setup token in logs, or `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD`), password login, sessions
+- [x] First-launch admin setup with a one-time setup token from the logs, password login (email or username), sessions (cookie, CSRF origin check, login rate limit)
+- [ ] `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD` to skip the setup page (service function exists, env vars come with the DB settings merge)
+- [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
+- [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
+- [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)
+- [x] OpenAPI spec (utoipa) at `/api/v1/openapi.json`, docs page at `/api/docs`, TS client generated from it (openapi-typescript + openapi-fetch), CI checks both are up to date
 - [ ] Minimal boards -> columns -> cards via `/api/v1`, OpenAPI spec (utoipa), web UI using the generated TS client
 - [ ] Action recording for every mutation
 - [ ] Example `examples/compose.yml` tested against the released image
