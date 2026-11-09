@@ -8,9 +8,6 @@ common-connecting = connecting...
 common-server-unreachable = server not reachable ({ $error })
 common-version = version { $version }
 
-## Home
-
-home-welcome = Hi { $name }
 
 ## Login and accounts
 
@@ -30,6 +27,31 @@ setup-intro = Create the admin account. The one-time setup token is printed in t
 setup-field-token = Setup token
 setup-submit = Create admin account
 
+## Boards
+
+board-list-heading = Boards
+board-list-empty = No boards yet.
+board-new-name = New board name
+board-new-submit = Create board
+board-default-column-todo = To do
+board-default-column-doing = Doing
+board-default-column-done = Done
+board-rename = Rename board
+board-not-found = This board doesn't exist or you don't have access to it.
+column-new-name = Add a column
+column-rename = Rename column
+column-move-left = Move column left
+column-move-right = Move column right
+column-delete = Delete column (only when empty)
+card-new-title = Add a card
+card-edit-heading = Edit card
+card-field-title = Title
+card-field-description = Description
+card-field-column = Column
+card-delete = Delete card
+common-save = Save
+common-cancel = Cancel
+
 ## Errors
 
 error-unknown = Something went wrong. Try again.
@@ -44,3 +66,10 @@ error-invalid-name = The name must be 1 to 100 characters.
 error-password-too-short = The password needs at least 10 characters.
 error-password-too-long = The password can have at most 512 characters.
 error-too-many-attempts = Too many failed logins. Try again in 15 minutes.
+error-invalid-board-name = Board names are 1 to 200 characters.
+error-invalid-column-name = Column names are 1 to 200 characters.
+error-invalid-card-title = Card titles are 1 to 500 characters.
+error-description-too-long = The description is too long.
+error-invalid-wip-limit = The WIP limit must be at least 1.
+error-column-not-empty = Move or delete the cards in this column first.
+error-not-found = That doesn't exist anymore. Reload the page.

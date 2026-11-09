@@ -21,6 +21,12 @@ pub enum Invalid {
     Name,
     PasswordTooShort,
     PasswordTooLong,
+    BoardName,
+    ColumnName,
+    CardTitle,
+    Description,
+    WipLimit,
+    Position,
 }
 
 /// Account details for a new user.
@@ -140,7 +146,10 @@ async fn create_user(
     let hash = laneway_auth::hash_password(password)?;
     let new = NewUser { email, username, name, instance_role: role, password_hash: Some(&hash) };
     match laneway_db::users::create(&mut **tx, &new).await {
-        Ok(user) => Ok(user),
+        Ok(user) => {
+            laneway_db::workspaces::create_personal(&mut **tx, user.id, &user.name).await?;
+            Ok(user)
+        }
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("users_email_uidx") => Err(Error::EmailTaken),
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("users_username_uidx") => {
             Err(Error::UsernameTaken)
@@ -216,6 +225,19 @@ pub async fn logout(pool: &PgPool, token: &str) -> Result<(), Error> {
 
 fn truncate(text: &str, max_chars: usize) -> String {
     text.chars().take(max_chars).collect()
+}
+
+/// Test helper: inserts a non-admin user with a personal workspace.
+#[cfg(test)]
+pub(crate) mod tests_support {
+    use super::*;
+
+    pub async fn create_plain_user(tx: &mut sqlx::PgTransaction<'_>, account: &NewAccount) -> Uuid {
+        create_user(tx, &account.email, &account.username, &account.name, &account.password, "user")
+            .await
+            .unwrap()
+            .id
+    }
 }
 
 #[cfg(test)]

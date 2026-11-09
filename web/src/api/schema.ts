@@ -38,6 +38,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/boards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Boards you can see. */
+        get: operations["list_boards"];
+        put?: never;
+        /** Creates a board in your personal workspace. */
+        post: operations["create_board"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/boards/{board_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A board with its columns and cards. */
+        get: operations["get_board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Changes a board. Fields left out stay as they are. */
+        patch: operations["update_board"];
+        trace?: never;
+    };
+    "/api/v1/boards/{board_id}/columns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a column at the right end of the board. */
+        post: operations["create_column"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/boards/{board_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent changes on a board, newest first. */
+        get: operations["board_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a card. */
+        delete: operations["delete_card"];
+        options?: never;
+        head?: never;
+        /** Changes a card. Fields left out stay as they are. */
+        patch: operations["update_card"];
+        trace?: never;
+    };
+    "/api/v1/cards/{card_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Moves a card within or between columns. */
+        post: operations["move_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/columns/{column_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an empty column. */
+        delete: operations["delete_column"];
+        options?: never;
+        head?: never;
+        /** Changes a column. Fields left out stay as they are. */
+        patch: operations["update_column"];
+        trace?: never;
+    };
+    "/api/v1/columns/{column_id}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a card at the bottom of a column. */
+        post: operations["create_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/columns/{column_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Moves a column. */
+        post: operations["move_column"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instance": {
         parameters: {
             query?: never;
@@ -93,6 +250,80 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Board: {
+            /** @description Agents (MCP) can see and use this board. */
+            agent_access_enabled: boolean;
+            /** Format: date-time */
+            created_at: string;
+            description: string;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uuid */
+            owner_id: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: uuid */
+            workspace_id: string;
+        };
+        /** @description A board with its columns and cards, both in display order. */
+        BoardDetail: {
+            board: components["schemas"]["Board"];
+            cards: components["schemas"]["Card"][];
+            columns: components["schemas"]["Column"][];
+        };
+        Card: {
+            /** Format: uuid */
+            board_id: string;
+            /** Format: uuid */
+            column_id: string;
+            /** Format: date-time */
+            completed_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+            /** @description Markdown. */
+            description: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Sort key within the column. Cards are returned in order. */
+            position: string;
+            title: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        Column: {
+            /** Format: uuid */
+            board_id: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Cards in a done column count as completed. */
+            is_done: boolean;
+            name: string;
+            /** @description Sort key. Columns are returned in order; clients don't need to compare these. */
+            position: string;
+            /** Format: int32 */
+            wip_limit?: number | null;
+        };
+        CreateBoardRequest: {
+            /** @description Defaults to true. */
+            agent_access_enabled?: boolean | null;
+            /** @description Starting columns, left to right. The web UI sends translated defaults. */
+            columns?: components["schemas"]["NewColumnRequest"][];
+            description?: string;
+            name: string;
+        };
+        CreateCardRequest: {
+            description?: string;
+            title: string;
+        };
+        CreateColumnRequest: {
+            is_done?: boolean;
+            name: string;
+            /** Format: int32 */
+            wip_limit?: number | null;
+        };
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
         };
@@ -101,6 +332,19 @@ export interface components {
             code: string;
             /** @description Human-readable explanation (English for now). */
             message: string;
+        };
+        HistoryEntry: {
+            /** Format: uuid */
+            actor_id?: string | null;
+            /** @description `user`, `agent`, `api_key`, `system` or `sync`. */
+            actor_type: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+            payload: unknown;
+            /** @description e.g. `card.move`. */
+            type: string;
         };
         Instance: {
             name: string;
@@ -125,6 +369,23 @@ export interface components {
             timezone?: string | null;
             username: string;
         };
+        MoveCardRequest: {
+            /**
+             * Format: uuid
+             * @description Target column, on the same board.
+             */
+            column_id: string;
+            /** @description New place in that column, 0 = top. Past the end = bottom. */
+            index: number;
+        };
+        MoveColumnRequest: {
+            /** @description New place among the board's columns, 0 = leftmost. Past the end = last. */
+            index: number;
+        };
+        NewColumnRequest: {
+            is_done?: boolean;
+            name: string;
+        };
         SetupRequest: {
             email: string;
             name: string;
@@ -132,6 +393,24 @@ export interface components {
             /** @description One-time token printed to the server logs. */
             setup_token: string;
             username: string;
+        };
+        UpdateBoardRequest: {
+            agent_access_enabled?: boolean | null;
+            description?: string | null;
+            name?: string | null;
+        };
+        UpdateCardRequest: {
+            description?: string | null;
+            title?: string | null;
+        };
+        UpdateColumnRequest: {
+            is_done?: boolean | null;
+            name?: string | null;
+            /**
+             * Format: int32
+             * @description A number sets the limit, `null` removes it, leaving it out keeps it.
+             */
+            wip_limit?: number | null;
         };
     };
     responses: never;
@@ -197,6 +476,411 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_boards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"][];
+                };
+            };
+        };
+    };
+    create_board: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateBoardRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardDetail"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_board: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardDetail"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_board: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBoardRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Board"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_column: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateColumnRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    board_history: {
+        parameters: {
+            query?: {
+                /** @description How many entries, newest first (1-500, default 50). */
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryEntry"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCardRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveCardRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_column: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                column_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the column still has cards */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_column: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                column_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateColumnRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_card: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                column_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCardRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_column: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                column_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveColumnRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Column"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
         };
     };
