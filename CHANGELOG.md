@@ -2,6 +2,14 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.3 (2026-11-09)
+
+### Bug fixes
+
+#### web
+
+- an expired session sends you to the login page
+
 ## 0.1.2 (2026-11-09)
 
 ### Bug fixes
