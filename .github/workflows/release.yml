@@ -7,8 +7,11 @@ on:
   push:
     branches: [main]
 
+# Releases run one after another. Only bump commits share the group: GitHub keeps one pending
+# run per group, so a later non-bump push (which skips every job anyway) would otherwise
+# replace, and cancel, a release still waiting for its turn.
 concurrency:
-  group: release
+  group: ${{ startsWith(github.event.head_commit.message, 'bump:') && 'release' || format('release-skip-{0}', github.sha) }}
   cancel-in-progress: false
 
 permissions:
@@ -48,14 +51,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git cliff --tag "v$VERSION" -o CHANGELOG.md
+          bash scripts/release-notes.sh "$VERSION" release-notes.md
           git add CHANGELOG.md
           git commit -m "changelog: v$VERSION"
           git tag -a "v$VERSION" -m "v$VERSION"
           git branch "release/v$VERSION"
           git push origin HEAD:main "v$VERSION" "release/v$VERSION"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          git cliff --latest --strip all > release-notes.md
       - uses: actions/upload-artifact@v7
         with:
           name: release-notes
@@ -92,6 +94,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
+          # The image's version label comes from the first tag; without this it said "main".
+          tags: type=raw,value=${{ needs.changelog.outputs.version }}
       - name: build for smoke test
         uses: docker/build-push-action@v7
         with:
@@ -100,9 +104,16 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           tags: laneway:smoke
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=release-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
       - run: bash scripts/smoke-test.sh laneway:smoke
+      - name: image version label is the release version
+        env:
+          VERSION: ${{ needs.changelog.outputs.version }}
+        run: |
+          label="$(docker image inspect laneway:smoke --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
+          [ "$label" = "$VERSION" ] || { echo "image version label is '$label', expected '$VERSION'" >&2; exit 1; }
       - id: push
         uses: docker/build-push-action@v7
         with:

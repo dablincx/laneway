@@ -2,6 +2,38 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.7 (2026-11-09)
+
+### Documentation
+
+#### general
+
+- readme describes what v0.1.0 can do and how to self-host it
+
+## 0.1.6 (2026-11-09)
+
+### Bug fixes
+
+#### docker
+
+- release images carry their version in the version label
+
+## 0.1.4 (2026-11-09)
+
+### Bug fixes
+
+#### server
+
+- security headers on every response (no framing, csp, nosniff, referrer policy)
+
+## 0.1.3 (2026-11-09)
+
+### Bug fixes
+
+#### web
+
+- an expired session sends you to the login page
+
 ## 0.1.2 (2026-11-09)
 
 ### Bug fixes

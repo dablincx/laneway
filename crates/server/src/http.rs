@@ -5,7 +5,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::routing::get;
 use axum::{Json, Router, middleware};
 use laneway_config::{Config, Url};
@@ -76,8 +76,41 @@ pub fn router(state: AppState, web_directory: &Path) -> Router {
         .merge(api_router)
         .merge(Scalar::with_url("/api/docs", spec_for_docs))
         .fallback_service(web)
+        .layer(middleware::from_fn(security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+/// Content Security Policy for the web UI: only our own origin. Inline styles are allowed
+/// because Radix sets `style` attributes; inline scripts are not.
+const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self'; \
+    style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; \
+    object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
+/// Headers that make the browser stricter: no framing (clickjacking), no MIME sniffing, no
+/// referrer to other sites, and a CSP. The API docs page loads Scalar from a CDN, so it gets
+/// everything but the CSP.
+async fn security_headers(
+    request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let is_docs = request.uri().path().starts_with("/api/docs");
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    let defaults = [
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        (header::X_FRAME_OPTIONS, "DENY"),
+        (header::REFERRER_POLICY, "same-origin"),
+    ];
+    for (name, value) in defaults {
+        headers.entry(name).or_insert(HeaderValue::from_static(value));
+    }
+    if !is_docs {
+        headers
+            .entry(header::CONTENT_SECURITY_POLICY)
+            .or_insert(HeaderValue::from_static(CONTENT_SECURITY_POLICY));
+    }
+    response
 }
 
 async fn api_not_found() -> ApiError {
@@ -162,6 +195,30 @@ pub mod tests {
     async fn ready_with_database(pool: PgPool) {
         let dir = web_dir();
         assert_eq!(get(router(state(pool), dir.path()), "/readyz").await, (StatusCode::OK, "ok".into()));
+    }
+
+    async fn headers_of(router: Router, uri: &str) -> axum::http::HeaderMap {
+        router.oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap().headers().clone()
+    }
+
+    #[tokio::test]
+    async fn security_headers_on_every_response() {
+        let dir = web_dir();
+        for uri in ["/", "/boards/x", "/app.js", "/healthz", "/api/v1/nope", "/api/v1/openapi.json"] {
+            let h = headers_of(app(&dir), uri).await;
+            assert_eq!(h["x-frame-options"], "DENY", "{uri}");
+            assert_eq!(h["x-content-type-options"], "nosniff", "{uri}");
+            assert_eq!(h["referrer-policy"], "same-origin", "{uri}");
+            let csp = h["content-security-policy"].to_str().unwrap();
+            assert!(
+                csp.contains("frame-ancestors 'none'") && csp.contains("script-src 'self'"),
+                "{uri}: {csp}"
+            );
+        }
+        // The docs page loads its script from a CDN: no CSP there, the rest still applies.
+        let docs = headers_of(app(&dir), "/api/docs").await;
+        assert_eq!(docs["x-frame-options"], "DENY");
+        assert!(docs.get("content-security-policy").is_none());
     }
 
     #[tokio::test]
