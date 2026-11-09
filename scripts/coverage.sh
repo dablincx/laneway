@@ -16,3 +16,7 @@ else
 fi
 cargo llvm-cov report --lcov --output-path target/lcov.info
 cargo llvm-cov report --summary-only --fail-under-lines "$min_lines"
+
+# Per-crate gates for the code that has to be the most trustworthy (see TODO.md for the targets).
+cargo llvm-cov report --json --summary-only --output-path target/coverage.json
+python3 scripts/coverage-gates.py target/coverage.json core=90 auth=90

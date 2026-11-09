@@ -172,14 +172,19 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: e2e, install playwright + chromium
+      - name: e2e, install playwright browsers
         working-directory: web
         run: |
           corepack enable
           pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
-      - name: e2e tests
-        run: bash scripts/e2e.sh --image laneway:ci
+          pnpm exec playwright install --with-deps chromium firefox webkit
+      - name: e2e tests (chromium, firefox, webkit)
+        run: |
+          for browser in chromium firefox webkit; do
+            echo "::group::e2e $browser"
+            LANEWAY_E2E_BROWSER="$browser" bash scripts/e2e.sh --image laneway:ci
+            echo "::endgroup::"
+          done
       - name: e2e report
         if: failure()
         uses: actions/upload-artifact@v7
