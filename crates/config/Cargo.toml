@@ -1,0 +1,20 @@
+[package]
+name = "laneway-config"
+description = "laneway: typed configuration, env parsing and generated env var docs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror = "2.0.21"
+url = "2.5.8"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

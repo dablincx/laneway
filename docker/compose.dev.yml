@@ -1,0 +1,66 @@
+# Dev environment. Use ./dev.sh instead of calling this directly.
+name: laneway-dev
+
+x-dev-env: &dev-env
+  LANEWAY_PUBLIC_URL: http://localhost:5173
+  LANEWAY_SECRET_KEY: dev-secret-key-not-for-production-use-0000
+  LANEWAY_DATABASE_URL: postgres://laneway:laneway@postgres:5432/laneway
+  LANEWAY_DATA_DIRECTORY: /cache/data
+  LANEWAY_LOG_LEVEL: debug
+  LANEWAY_DEV_SERVER_URL: http://localhost:3000
+  CARGO_BUILD_JOBS: ${LANEWAY_DEV_BUILD_JOBS:-2}
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+      args:
+        UID: ${LANEWAY_DEV_UID:-1000}
+        GID: ${LANEWAY_DEV_GID:-1000}
+    user: "${LANEWAY_DEV_UID:-1000}:${LANEWAY_DEV_GID:-1000}"
+    command: sleep infinity
+    environment: *dev-env
+    volumes:
+      - ..:/workspace
+      - cache:/cache
+      - node_modules:/workspace/web/node_modules
+    ports:
+      - "3000:3000" # laneway server
+      - "5173:5173" # Vite dev server (web UI)
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: ${LANEWAY_DEV_MEMORY_LIMIT:-6g}
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: laneway
+      POSTGRES_PASSWORD: laneway
+      POSTGRES_DB: laneway
+    volumes:
+      - postgres:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U laneway"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025" # web UI for caught emails
+
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    command: serve
+    ports:
+      - "8090:80"
+
+volumes:
+  cache:
+  node_modules:
+  postgres:

@@ -1,0 +1,7 @@
+# Conventional Commits rules (checked by CI and scripts/git-hooks/commit-msg).
+ignore_merge_commits = true
+tag_prefix = "v"
+
+[commit_types]
+bump = { changelog_title = "", omit_from_changelog = true }
+changelog = { changelog_title = "", omit_from_changelog = true }

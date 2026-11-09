@@ -1,0 +1,176 @@
+name: release
+
+# Runs when a `bump: vX.Y.Z` commit lands on main (made by ./dev.sh bump).
+# Order: changelog -> tag + release/vX.Y.Z branch -> images per arch -> multi-arch manifest -> GitHub Release.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/dablincx/laneway
+
+jobs:
+  changelog:
+    if: startsWith(github.event.head_commit.message, 'bump:')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # RELEASE_TOKEN is only needed if main is protected against the bot.
+          token: ${{ secrets.RELEASE_TOKEN || github.token }}
+      - id: version
+        run: |
+          version="$(sed -n '/^\[workspace.package\]/,/^\[/ s/^version = "\(.*\)"/\1/p' Cargo.toml)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$version" >/dev/null 2>&1; then echo "tag v$version already exists" >&2; exit 1; fi
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+      - id: commit
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git cliff --tag "v$VERSION" -o CHANGELOG.md
+          git add CHANGELOG.md
+          git commit -m "changelog: v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git branch "release/v$VERSION"
+          git push origin HEAD:main "v$VERSION" "release/v$VERSION"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git cliff --latest --strip all > release-notes.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  build:
+    needs: changelog
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.changelog.outputs.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+      - name: build for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: laneway:smoke
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
+      - run: bash scripts/smoke-test.sh laneway:smoke
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          provenance: mode=max
+          sbom: true
+      - run: |
+          mkdir -p digests
+          touch "digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/*
+
+  publish:
+    needs: [changelog, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: digests
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}},value=v${{ needs.changelog.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ needs.changelog.outputs.version }},enable=${{ needs.changelog.outputs.prerelease == 'false' }}
+            type=semver,pattern={{major}},value=v${{ needs.changelog.outputs.version }},enable=${{ needs.changelog.outputs.prerelease == 'false' && !startsWith(needs.changelog.outputs.version, '0.') }}
+            type=raw,value=latest,enable=${{ needs.changelog.outputs.prerelease == 'false' }}
+            type=sha,prefix=sha-,value=${{ needs.changelog.outputs.sha }}
+      - name: multi-arch manifest
+        working-directory: digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+          docker buildx imagetools inspect "${{ env.IMAGE }}:${{ needs.changelog.outputs.version }}" | tee ../manifest.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.changelog.outputs.version }}
+          PRERELEASE: ${{ needs.changelog.outputs.prerelease }}
+        run: |
+          digest="$(grep -m1 '^Digest:' manifest.txt | awk '{print $2}')"
+          printf '\n\nImage: `%s:%s` (`%s`)\n' "$IMAGE" "$VERSION" "$digest" >> release-notes.md
+          flags=()
+          [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --title "v$VERSION" --notes-file release-notes.md "${flags[@]}"

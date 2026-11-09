@@ -1,0 +1,15 @@
+[package]
+name = "laneway-auth"
+description = "laneway: sessions, passwords, 2FA, passkeys, OIDC and the OAuth 2.1 server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

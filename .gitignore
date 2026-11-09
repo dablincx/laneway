@@ -1,0 +1,12 @@
+# Rust
+/target
+
+# Web
+node_modules/
+/web/dist
+*.tsbuildinfo
+
+# Local only
+/docs/PLAN.md
+.env
+*.local
