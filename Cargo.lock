@@ -1259,7 +1259,7 @@ name = "laneway-core"
 version = "0.1.8"
 dependencies = [
  "aes-gcm",
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "hkdf",
  "laneway-auth",
