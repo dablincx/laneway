@@ -27,6 +27,8 @@ Rules for Claude working on laneway. Read this first in every session.
   `ci/<topic>`, `refactor/<topic>`. Never work on `claude/*` session branches.
 - Sub-branch -> feature branch when it works, feature branch -> `main` via PR when the group is done
   and CI is green. Merge commits, no squash (the changelog needs every commit).
+- Push every branch, sub-branches too. Merge sub-branches with `--no-ff`, never fast-forward: the
+  same commit pushed to two branches runs CI twice.
 - Commits: Conventional Commits, `type(scope): description`, lowercase. Types: feat, fix, perf,
   refactor, docs, test, style, build, ci, chore, revert, bump, changelog. Checked by
   `scripts/git-hooks/commit-msg` and CI.
