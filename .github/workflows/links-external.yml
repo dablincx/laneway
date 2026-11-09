@@ -1,0 +1,39 @@
+name: links-external
+
+# External links in the docs break when other sites change, so they're checked weekly instead of
+# on every push. A broken link opens (or updates) one issue instead of failing anyone's build.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  external-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - id: lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress --exclude-path 'docs/PLAN\.md'
+            README.md CONTRIBUTING.md SECURITY.md 'docs/**/*.md' 'examples/*' examples/.env.example
+          output: lychee-report.md
+          fail: false
+      - name: open or update an issue
+        if: steps.lychee.outputs.exit_code != 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Broken external links in the docs"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file lychee-report.md
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file lychee-report.md
+          fi
