@@ -69,6 +69,23 @@ test.describe("german", () => {
   });
 });
 
+test("unknown pages show a translated not-found page", async ({ page }) => {
+  await logIn(page);
+  await page.goto("/no-such-page");
+  await expect(page.getByRole("heading", { name: en("common-not-found") })).toBeVisible();
+  await page.getByRole("link", { name: en("common-back-home") }).click();
+  await expect(page.getByRole("heading", { name: en("board-list-heading") })).toBeVisible();
+});
+
+test.describe("german not-found page", () => {
+  test.use({ locale: "de-DE" });
+
+  test("is translated", async ({ page }) => {
+    await page.goto("/no-such-page");
+    await expect(page.getByRole("heading", { name: de("common-not-found") })).toBeVisible();
+  });
+});
+
 test("an expired session sends you to the login page", async ({ page }) => {
   await logIn(page);
   await page.getByLabel(en("board-new-name")).fill("e2e expiry");
