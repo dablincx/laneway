@@ -36,7 +36,7 @@ Gaps and shortcuts found while building v0.1.0. Pick them up when they get in th
 feature they belong to.
 
 - [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
-- [ ] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`); today only text nodes are checked
+- [x] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`)
 - [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
 - [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
 - [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
