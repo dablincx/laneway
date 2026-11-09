@@ -2,6 +2,14 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.4 (2026-11-09)
+
+### Bug fixes
+
+#### server
+
+- security headers on every response (no framing, csp, nosniff, referrer policy)
+
 ## 0.1.3 (2026-11-09)
 
 ### Bug fixes
