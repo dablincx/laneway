@@ -2,6 +2,18 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.8 (2026-11-09)
+
+### Bug fixes
+
+#### server
+
+- login limit can't lock everyone out behind a proxy, real client ip from x-forwarded-for
+
+#### web
+
+- unknown pages show a translated not-found page
+
 ## 0.1.7 (2026-11-09)
 
 ### Documentation
