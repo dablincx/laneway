@@ -1,3 +1,6 @@
 //! laneway: domain services, permission resolver and actions.
 //!
-//! Placeholder crate. See `TODO.md` for when it gets filled in.
+//! Most of it is still to come (see `TODO.md`). Today: encryption of secrets at rest and the
+//! database settings layer.
+
+pub mod crypto;
