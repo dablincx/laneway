@@ -1,0 +1,57 @@
+# Example production setup for laneway.
+#   1. Copy this file and .env.example next to each other, rename .env.example to .env
+#   2. Fill in the required values in .env, and add POSTGRES_PASSWORD=<random password> to it.
+#      LANEWAY_DATABASE_URL in .env is ignored here, compose builds it from POSTGRES_PASSWORD.
+#   3. docker compose up -d
+# Every env var is documented in docs/configuration/environment-variables.md.
+# Not usable yet: laneway hasn't had its first release.
+
+name: laneway
+
+x-laneway: &laneway
+  image: ghcr.io/dablincx/laneway:latest
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - data:/data
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # Web UI, API and MCP server.
+  app:
+    <<: *laneway
+    environment:
+      # Points at the postgres service below, using POSTGRES_PASSWORD from .env.
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
+      LANEWAY_PROCESS_ROLE: app
+    ports:
+      - "3000:3000"
+
+  # Background jobs (git commits, emails, ...). For small installs you can drop this service and
+  # set LANEWAY_PROCESS_ROLE=all on app instead.
+  worker:
+    <<: *laneway
+    environment:
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
+      LANEWAY_PROCESS_ROLE: worker
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: laneway
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: laneway
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U laneway"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  data:
+  postgres:
