@@ -33,7 +33,7 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [x] OpenAPI spec (utoipa) at `/api/v1/openapi.json`, docs page at `/api/docs`, TS client generated from it (openapi-typescript + openapi-fetch), CI checks both are up to date
 - [ ] Minimal boards -> columns -> cards via `/api/v1`, OpenAPI spec (utoipa), web UI using the generated TS client
 - [ ] Action recording for every mutation
-- [ ] Example `examples/compose.yml` tested against the released image
+- [x] Example compose files (`compose.yml` app + worker, `compose.aio.yml` all in one), tested in CI against the image built there
 - [ ] CI: coverage gates (`cargo-llvm-cov`), Playwright e2e, markdown link check, dev container build
 
 ## v0.2.0 Full kanban (`feat/kanban`)

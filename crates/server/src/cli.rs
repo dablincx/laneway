@@ -24,7 +24,7 @@ pub struct Cli {
 enum Command {
     /// Run laneway (default). `LANEWAY_PROCESS_ROLE` picks app, worker or both.
     Serve,
-    /// Check that the local app answers on /healthz (for Docker healthchecks).
+    /// Docker healthcheck: the app answers on /healthz (worker role: the database is reachable).
     Health,
     /// Print the OpenAPI spec of `/api/v1` as JSON (used to generate the web UI's API client).
     Openapi,
@@ -73,7 +73,14 @@ enum ConfigCommand {
 pub async fn run(cli: Cli) -> Result<ExitCode> {
     match cli.command.unwrap_or(Command::Serve) {
         Command::Serve => serve().await,
-        Command::Health => health(),
+        Command::Health => {
+            // A worker-only container serves no HTTP: check that it can reach the database.
+            if std::env::var("LANEWAY_PROCESS_ROLE").is_ok_and(|r| r.trim() == "worker") {
+                worker_health().await
+            } else {
+                health()
+            }
+        }
         Command::Openapi => {
             println!("{}", serde_json::to_string_pretty(&crate::api::openapi())?);
             Ok(ExitCode::SUCCESS)
@@ -208,6 +215,13 @@ fn health() -> Result<ExitCode> {
         eprintln!("unhealthy: {}", response.lines().next().unwrap_or("no response"));
         Ok(ExitCode::FAILURE)
     }
+}
+
+async fn worker_health() -> Result<ExitCode> {
+    let (config, _) = load()?;
+    let pool = laneway_db::connect(config.database_url.as_str(), 1).await?;
+    laneway_db::ping(&pool).await?;
+    Ok(ExitCode::SUCCESS)
 }
 
 fn setting_default(env: &str) -> &'static str {

@@ -49,6 +49,9 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest,sqlx-cli
+      # sqlx checks every query against this database while compiling, so it needs the tables.
+      - name: apply migrations to the CI database
+        run: cargo sqlx migrate run --source crates/db/migrations
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo nextest run --workspace --locked --no-tests=pass
@@ -102,6 +105,10 @@ jobs:
           cache-to: type=gha,mode=max,scope=ci-amd64
       - name: smoke test
         run: bash scripts/smoke-test.sh laneway:ci
+      - name: example compose, app + worker
+        run: bash scripts/compose-test.sh examples/compose.yml laneway:ci
+      - name: example compose, all in one
+        run: bash scripts/compose-test.sh examples/compose.aio.yml laneway:ci
 
   dev-container:
     runs-on: ubuntu-latest

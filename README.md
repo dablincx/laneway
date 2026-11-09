@@ -16,8 +16,12 @@ laneway is in early development. Nothing is usable yet, see [TODO.md](TODO.md) f
 
 ## Self-hosting
 
-Not ready yet. Once released, images are published to `ghcr.io/dablincx/laneway` and
-[examples/compose.yml](examples/compose.yml) is the starting point. All env vars are documented in
+Not ready yet. Once released, images are published to `ghcr.io/dablincx/laneway`. Two example
+setups to start from:
+
+- [examples/compose.yml](examples/compose.yml): separate app and worker containers
+- [examples/compose.aio.yml](examples/compose.aio.yml): everything in one container, for small installs
+ All env vars are documented in
 [docs/configuration/environment-variables.md](docs/configuration/environment-variables.md).
 
 ## Development
