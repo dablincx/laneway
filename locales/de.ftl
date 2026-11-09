@@ -5,6 +5,8 @@
 common-connecting = verbinde...
 common-server-unreachable = Server nicht erreichbar ({ $error })
 common-version = Version { $version }
+common-not-found = Diese Seite gibt es nicht.
+common-back-home = Zurück zu deinen Boards
 
 
 ## Login and accounts

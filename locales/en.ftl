@@ -7,6 +7,8 @@ common-app-name = laneway
 common-connecting = connecting...
 common-server-unreachable = server not reachable ({ $error })
 common-version = version { $version }
+common-not-found = This page doesn't exist.
+common-back-home = Back to your boards
 
 
 ## Login and accounts

@@ -5,6 +5,8 @@
 common-connecting = connexion...
 common-server-unreachable = serveur injoignable ({ $error })
 common-version = version { $version }
+common-not-found = Cette page n'existe pas.
+common-back-home = Retour à tes tableaux
 
 
 ## Login and accounts
