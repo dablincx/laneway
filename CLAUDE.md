@@ -42,7 +42,8 @@ Rules for Claude working on laneway. Read this first in every session.
 
 ## Running things
 
-- `./dev.sh help` lists everything. `./dev.sh lint` and `./dev.sh test` must pass before pushing.
+- `./dev.sh help` lists everything. `./dev.sh lint` and `./dev.sh test` must pass (exit code 0, not just
+  "no errors in the output") before pushing. Run `cargo fmt --all` after `cargo clippy --fix`.
 - In Claude Code cloud sessions use `LANEWAY_DEV_NATIVE=1 ./dev.sh ...`: the toolchains are on the
   host, and containers there can't reach the network through the session proxy. Services
   (Postgres 18, Mailpit, ntfy) still run in Docker via `./dev.sh services`.
