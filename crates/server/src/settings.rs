@@ -5,7 +5,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use laneway_config::{Config, Origin, SETTINGS, Source};
+use laneway_config::{Config, SETTINGS, Source};
 use laneway_core::settings::{self, Skipped};
 use laneway_db::PgPool;
 
@@ -96,10 +96,7 @@ fn render_list(source: &Source, skipped: &[Skipped]) -> String {
                 Err(message) => (format!("(error: {message})"), String::new()),
             };
             let mut from = origin;
-            let env_wins = source
-                .lookup(s)
-                .is_ok_and(|v| v.is_some_and(|(_, o)| matches!(o, Origin::Env | Origin::EnvFile)));
-            if env_wins && source.database_value(s).is_some() {
+            if source.is_locked(s) && source.database_value(s).is_some() {
                 from.push_str(", locked by env");
             }
             if s.env_only {
