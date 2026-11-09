@@ -1,23 +1,40 @@
 #!/usr/bin/env bash
-# Starts an image and waits for it to become healthy. Usage: scripts/smoke-test.sh <image>
+# Runs an image against a real Postgres 18 and checks it becomes ready and serves the web UI.
+# Usage: scripts/smoke-test.sh <image>
 set -euo pipefail
 image="$1"
-name="laneway-smoke-$$"
-trap 'docker logs "$name" 2>&1 | tail -50; docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+id="laneway-smoke-$$"
+port="${SMOKE_PORT:-13000}"
+cleanup() {
+  docker logs "$id-app" 2>&1 | tail -40 || true
+  docker rm -f "$id-app" "$id-db" >/dev/null 2>&1 || true
+  docker network rm "$id" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
-docker run -d --name "$name" \
-  -e LANEWAY_PUBLIC_URL=http://localhost:3000 \
-  -e LANEWAY_SECRET_KEY=smoke-test-secret-key-0000000000000000 \
-  -e LANEWAY_DATABASE_URL=postgres://laneway:laneway@localhost:5432/laneway \
+docker network create "$id" >/dev/null
+docker run -d --name "$id-db" --network "$id" \
+  -e POSTGRES_USER=laneway -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=laneway postgres:18 >/dev/null
+for _ in $(seq 1 30); do
+  docker exec "$id-db" pg_isready -U laneway >/dev/null 2>&1 && break
+  sleep 1
+done
+
+docker run -d --name "$id-app" --network "$id" -p "$port:3000" \
+  -e LANEWAY_PUBLIC_URL="http://localhost:$port" \
+  -e LANEWAY_SECRET_KEY=smoke-test-secret-key-not-for-production \
+  -e LANEWAY_DATABASE_URL="postgres://laneway:smoke@$id-db:5432/laneway" \
   "$image" >/dev/null
 
-for _ in $(seq 1 30); do
-  if docker exec "$name" laneway health 2>/dev/null; then
-    docker exec "$name" sh -c 'test -f /app/web/index.html' || { echo "web UI missing from image" >&2; exit 1; }
+for _ in $(seq 1 60); do
+  if curl -fsS "http://localhost:$port/readyz" >/dev/null 2>&1; then
+    docker exec "$id-app" laneway health
+    curl -fsS "http://localhost:$port/" | grep -q '<div id="root">' || { echo "web UI not served" >&2; exit 1; }
+    curl -fsS "http://localhost:$port/api/v1/instance" | grep -q '"needs_setup":true' || { echo "API not answering" >&2; exit 1; }
     echo "smoke test ok"
     exit 0
   fi
   sleep 1
 done
-echo "container never became healthy" >&2
+echo "laneway never became ready" >&2
 exit 1
