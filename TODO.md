@@ -15,8 +15,10 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [ ] Verify the release workflow end to end with the first `bump: v0.1.0`
 - [ ] Verify the dev container (`./dev.sh up` without native mode) on a normal machine; it can't build in cloud sessions
 - [ ] i18n crate (`fluent-rs`) + `laneway i18n check` (missing/unused keys, syntax) in CI, lint rule against literal UI strings
-- [ ] Postgres 18 + sqlx migrations (advisory lock on start), version check, UUIDv7 everywhere, `/readyz` checks DB
-- [ ] Job queue crate (singleton keys, delayed jobs, retries, LISTEN/NOTIFY), worker role runs it
+- [x] Postgres 18 + sqlx migrations (advisory lock on start), version check, UUIDv7 everywhere, `/readyz` checks DB
+- [x] Job queue crate (serial keys, replace keys for debouncing, delayed jobs, retries with backoff, leases, LISTEN/NOTIFY), worker role runs it
+- [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
+- [ ] Job queue: show jobs in the admin job monitor (v0.3)
 - [ ] Config: DB settings layer wired to the `settings` table (encrypted secrets)
 - [ ] First-launch admin setup (setup token in logs, or `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD`), password login, sessions
 - [ ] Minimal boards -> columns -> cards via `/api/v1`, OpenAPI spec (utoipa), web UI using the generated TS client
