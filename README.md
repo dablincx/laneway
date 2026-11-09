@@ -1,11 +1,16 @@
 # laneway
 
+> [!WARNING]
+> **laneway is not stable yet.** Every release before v1.0.0 can contain breaking changes: to the
+> API, the database, the config and the docker setup. Don't rely on it for anything important yet,
+> keep backups, and read the [changelog](CHANGELOG.md) before you update. v1.0.0 comes once the
+> roadmap up to it in [TODO.md](TODO.md) is done; there is no date for it yet.
+
 Self-hostable kanban board with a web UI, a REST API, an MCP server for AI agents, and git-backed
 board history.
 
 laneway is in early development. v0.1.0 has accounts, boards with columns and cards, the REST
-API and English, German and French; much more is coming (see [TODO.md](TODO.md)). Expect breaking
-changes until 1.0.
+API and English, German and French; much more is coming (see [TODO.md](TODO.md)).
 
 ## What works today
 
