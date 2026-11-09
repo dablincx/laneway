@@ -21,9 +21,12 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [x] Job queue crate (serial keys, replace keys for debouncing, delayed jobs, retries with backoff, leases, LISTEN/NOTIFY), worker role runs it
 - [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
 - [ ] Job queue: show jobs in the admin job monitor (v0.3)
-- [ ] Config: DB settings layer wired to the `settings` table (encrypted secrets)
+- [x] Config: DB settings layer wired to the `settings` table (encrypted secrets), env-only bootstrap settings, `laneway settings list/set/unset`
+- [ ] Config: let required non-bootstrap settings (`LANEWAY_PUBLIC_URL`) come from the DB only; today the first env-only load still needs them in the env
+- [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
+- [ ] Config: settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
 - [x] First-launch admin setup with a one-time setup token from the logs, password login (email or username), sessions (cookie, CSRF origin check, login rate limit)
-- [ ] `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD` to skip the setup page (service function exists, env vars come with the DB settings merge)
+- [x] `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD` to skip the setup page
 - [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
 - [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
 - [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)

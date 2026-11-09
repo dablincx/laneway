@@ -1,6 +1,7 @@
 //! laneway: database access. Postgres 18 only, plain SQL migrations in `migrations/`.
 
 pub mod sessions;
+pub mod settings;
 pub mod setup;
 pub mod users;
 

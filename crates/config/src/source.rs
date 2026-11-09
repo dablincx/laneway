@@ -14,7 +14,20 @@ pub enum Origin {
     Default,
 }
 
-/// Raw values, before parsing. Precedence: env var > DB setting > default.
+impl Origin {
+    /// Short label for the CLI and logs.
+    pub fn label(self) -> &'static str {
+        match self {
+            Origin::Env => "env",
+            Origin::EnvFile => "env file",
+            Origin::Database => "database",
+            Origin::Default => "default",
+        }
+    }
+}
+
+/// Raw values, before parsing. Precedence: env var > DB setting > default. DB values for
+/// env-only settings ([`Setting::env_only`]) are ignored.
 #[derive(Debug, Clone, Default)]
 pub struct Source {
     env: BTreeMap<String, String>,
@@ -37,7 +50,8 @@ impl Source {
         Self { env: vars.into_iter().map(|(k, v)| (k.into(), v.into())).collect(), database: BTreeMap::new() }
     }
 
-    /// Add settings stored in the DB, keyed by env var name.
+    /// Add settings stored in the DB, keyed by env var name. Unknown keys and env-only
+    /// settings are kept here but never used by [`Source::lookup`].
     #[must_use]
     pub fn with_database<I, K, V>(mut self, values: I) -> Self
     where
@@ -55,6 +69,15 @@ impl Source {
             || (setting.secret && self.env_value(&file_var(setting.env)).is_some())
     }
 
+    /// The value stored in the DB for this setting, if any, even when the env overrides it.
+    /// `None` for env-only settings, since their DB values are ignored.
+    pub fn database_value(&self, setting: &Setting) -> Option<&str> {
+        if setting.env_only {
+            return None;
+        }
+        self.database.get(setting.env).map(String::as_str)
+    }
+
     /// Look up the raw value of a setting. `Ok(None)` = unset everywhere.
     pub fn lookup(&self, setting: &Setting) -> Result<Option<(String, Origin)>, String> {
         let direct = self.env_value(setting.env);
@@ -70,9 +93,8 @@ impl Source {
                 Ok(Some((content.trim_end_matches(['\n', '\r']).to_owned(), Origin::EnvFile)))
             }
             (None, None) => Ok(self
-                .database
-                .get(setting.env)
-                .map(|v| (v.clone(), Origin::Database))
+                .database_value(setting)
+                .map(|v| (v.to_owned(), Origin::Database))
                 .or_else(|| setting.default.map(|d| (d.to_owned(), Origin::Default)))),
         }
     }

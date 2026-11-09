@@ -2,6 +2,8 @@
 //! validation, permission checks and recorded actions happen in exactly one place.
 
 pub mod accounts;
+pub mod crypto;
+pub mod settings;
 
 /// Errors the service layer returns. The API maps each to a status code and a stable error code.
 #[derive(Debug, thiserror::Error)]

@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use laneway_config::{Config, SETTINGS, Source};
 
+use crate::settings::{self, SettingsCommand};
 use crate::{http, logging, worker};
 
 /// Paths of the generated config files, relative to the repo root.
@@ -31,6 +32,11 @@ enum Command {
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
+    },
+    /// Settings stored in the database (until the settings UI exists).
+    Settings {
+        #[command(subcommand)]
+        command: SettingsCommand,
     },
     /// Translation tools.
     I18n {
@@ -74,6 +80,7 @@ pub async fn run(cli: Cli) -> Result<ExitCode> {
         }
         Command::Config { command: ConfigCommand::Check } => check(),
         Command::Config { command: ConfigCommand::Docs { check, root } } => docs(&root, check),
+        Command::Settings { command } => settings::run(command).await,
         Command::I18n { command: I18nCommand::Check { root } } => Ok(i18n_check(&root)),
     }
 }
@@ -96,6 +103,8 @@ async fn serve() -> Result<ExitCode> {
     let pool = laneway_db::connect(config.database_url.as_str(), config.database_max_connections).await?;
     laneway_db::migrate(&pool).await?;
     tracing::info!("database ready");
+    let config = settings::load_with_database(&pool, &config).await?;
+    initial_admin(&config, &pool).await?;
     if config.process_role.runs_app()
         && let Some(token) = laneway_core::accounts::issue_setup_token(&pool).await?
     {
@@ -134,6 +143,48 @@ async fn serve() -> Result<ExitCode> {
     }
     pool.close().await;
     Ok(if failed { ExitCode::FAILURE } else { ExitCode::SUCCESS })
+}
+
+/// Creates the admin from `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD` if both are set and no
+/// admin exists yet.
+async fn initial_admin(config: &Config, pool: &laneway_db::PgPool) -> Result<()> {
+    let (email, password) = match (&config.initial_admin_email, &config.initial_admin_password) {
+        (Some(email), Some(password)) => (email, password),
+        (None, None) => return Ok(()),
+        _ => anyhow::bail!(
+            "set both LANEWAY_INITIAL_ADMIN_EMAIL and LANEWAY_INITIAL_ADMIN_PASSWORD, or neither"
+        ),
+    };
+    let username = initial_username(email);
+    let account = laneway_core::accounts::NewAccount {
+        email: email.clone(),
+        name: username.clone(),
+        username,
+        password: password.expose().to_owned(),
+    };
+    if laneway_core::accounts::ensure_initial_admin(pool, &account)
+        .await
+        .context("creating the admin from LANEWAY_INITIAL_ADMIN_EMAIL")?
+        .is_some()
+    {
+        tracing::info!(
+            "created the first admin from LANEWAY_INITIAL_ADMIN_EMAIL, you can remove both vars now"
+        );
+    }
+    Ok(())
+}
+
+/// `Alex.Smith+x@example.com` -> `Alex.Smith-x`: the part before the @, with characters
+/// usernames don't allow replaced by `-`.
+fn initial_username(email: &str) -> String {
+    let local = email.split('@').next().unwrap_or_default();
+    let cleaned: String = local
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-') { c } else { '-' })
+        .collect();
+    let trimmed = cleaned.trim_start_matches(|c: char| !c.is_ascii_alphanumeric());
+    let name: String = trimmed.chars().take(32).collect();
+    if name.chars().count() >= 2 { name } else { "admin".to_owned() }
 }
 
 /// Plain HTTP/1.0 request, so the image doesn't need curl. Reads only the port, not the whole
@@ -232,6 +283,14 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn initial_username_from_email() {
+        assert_eq!(initial_username("alex@example.com"), "alex");
+        assert_eq!(initial_username("Alex.Smith+work@example.com"), "Alex.Smith-work");
+        assert_eq!(initial_username("_x@example.com"), "admin");
+        assert_eq!(initial_username(&format!("{}@example.com", "a".repeat(40))).len(), 32);
+    }
 
     #[test]
     fn parses_i18n_check() {
