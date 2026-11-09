@@ -7,8 +7,11 @@ on:
   push:
     branches: [main]
 
+# Releases run one after another. Only bump commits share the group: GitHub keeps one pending
+# run per group, so a later non-bump push (which skips every job anyway) would otherwise
+# replace, and cancel, a release still waiting for its turn.
 concurrency:
-  group: release
+  group: ${{ startsWith(github.event.head_commit.message, 'bump:') && 'release' || format('release-skip-{0}', github.sha) }}
   cancel-in-progress: false
 
 permissions:
