@@ -15,10 +15,18 @@ body = """
 {% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
-{% for commit in commits %}
-- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message }}\
-{% if commit.breaking %} (**breaking**){% endif %}\
+{% for scope, scoped in commits | filter(attribute="scope") | group_by(attribute="scope") %}
+#### {{ scope }}
+{% for commit in scoped %}
+- {{ commit.message }}{% if commit.breaking %} (**breaking**){% endif %}\
 {% endfor %}
+{% endfor %}\
+{% if commits | length > commits | filter(attribute="scope") | length %}
+#### general
+{% for commit in commits %}{% if not commit.scope %}
+- {{ commit.message }}{% if commit.breaking %} (**breaking**){% endif %}\
+{% endif %}{% endfor %}
+{% endif %}\
 {% endfor %}\n
 """
 trim = true
