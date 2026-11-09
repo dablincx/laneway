@@ -92,6 +92,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE }}
+          # The image's version label comes from the first tag; without this it said "main".
+          tags: type=raw,value=${{ needs.changelog.outputs.version }}
       - name: build for smoke test
         uses: docker/build-push-action@v7
         with:
@@ -100,9 +102,16 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           tags: laneway:smoke
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=release-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
       - run: bash scripts/smoke-test.sh laneway:smoke
+      - name: image version label is the release version
+        env:
+          VERSION: ${{ needs.changelog.outputs.version }}
+        run: |
+          label="$(docker image inspect laneway:smoke --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
+          [ "$label" = "$VERSION" ] || { echo "image version label is '$label', expected '$VERSION'" >&2; exit 1; }
       - id: push
         uses: docker/build-push-action@v7
         with:
