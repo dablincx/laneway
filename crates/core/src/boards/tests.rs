@@ -1,0 +1,164 @@
+use laneway_db::PgPool;
+
+use super::*;
+use crate::accounts::{NewAccount, ensure_initial_admin};
+
+async fn user(pool: &PgPool, username: &str) -> Actor {
+    let account = NewAccount {
+        email: format!("{username}@example.com"),
+        username: username.into(),
+        name: username.into(),
+        password: "a long enough password".into(),
+    };
+    // First call creates an admin; later users go through the same insert path.
+    let id = if let Some(u) = ensure_initial_admin(pool, &account).await.unwrap() {
+        u.id
+    } else {
+        let mut tx = pool.begin().await.unwrap();
+        let u = crate::accounts::tests_support::create_plain_user(&mut tx, &account).await;
+        tx.commit().await.unwrap();
+        u
+    };
+    Actor::User(id)
+}
+
+fn cols(names: &[(&str, bool)]) -> Vec<NewColumn> {
+    names.iter().map(|(n, d)| NewColumn { name: (*n).into(), is_done: *d }).collect()
+}
+
+async fn board(pool: &PgPool, actor: Actor) -> BoardView {
+    create(pool, actor, "Home", "", true, &cols(&[("To do", false), ("Doing", false), ("Done", true)]))
+        .await
+        .unwrap()
+}
+
+async fn action_types(pool: &PgPool, actor: Actor, board_id: Uuid) -> Vec<String> {
+    let mut types: Vec<String> =
+        history(pool, actor, board_id, 100).await.unwrap().into_iter().map(|a| a.kind).collect();
+    types.reverse();
+    types
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn create_board_with_columns_records_actions(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let view = board(&pool, alex).await;
+    assert_eq!(view.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["To do", "Doing", "Done"]);
+    assert!(view.columns[2].is_done);
+    assert_eq!(list(&pool, alex).await.unwrap().len(), 1);
+    assert_eq!(
+        action_types(&pool, alex, view.board.id).await,
+        ["board.create", "column.create", "column.create", "column.create"]
+    );
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn cards_move_between_columns_and_get_completed(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let view = board(&pool, alex).await;
+    let (todo, done) = (view.columns[0].id, view.columns[2].id);
+    let a = create_card(&pool, alex, todo, "A", "").await.unwrap();
+    let b = create_card(&pool, alex, todo, "B", "").await.unwrap();
+    let c = create_card(&pool, alex, todo, "C", "").await.unwrap();
+
+    // C to the top.
+    move_card(&pool, alex, c.id, todo, 0).await.unwrap();
+    let order = |v: &BoardView, col: Uuid| -> Vec<String> {
+        v.cards.iter().filter(|x| x.column_id == col).map(|x| x.title.clone()).collect()
+    };
+    let v = get(&pool, alex, view.board.id).await.unwrap();
+    assert_eq!(order(&v, todo), ["C", "A", "B"]);
+
+    // A into done, between nothing: completed.
+    let moved = move_card(&pool, alex, a.id, done, 5).await.unwrap();
+    assert!(moved.completed_at.is_some());
+    let back = move_card(&pool, alex, a.id, todo, 1).await.unwrap();
+    assert!(back.completed_at.is_none());
+    let v = get(&pool, alex, view.board.id).await.unwrap();
+    assert_eq!(order(&v, todo), ["C", "A", "B"]);
+
+    let updated = update_card(
+        &pool,
+        alex,
+        b.id,
+        CardChanges { title: Some(" B2 ".into()), description: Some("x".into()) },
+    )
+    .await
+    .unwrap();
+    assert_eq!((updated.title.as_str(), updated.description.as_str()), ("B2", "x"));
+    delete_card(&pool, alex, b.id).await.unwrap();
+    assert_eq!(get(&pool, alex, view.board.id).await.unwrap().cards.len(), 2);
+
+    let history = history(&pool, alex, view.board.id, 100).await.unwrap();
+    let delete = history.iter().find(|a| a.kind == "card.delete").unwrap();
+    assert_eq!(delete.inverse["restore_card"]["title"], "B2", "undo info keeps the whole card");
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn columns_reorder_and_only_empty_ones_can_be_deleted(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let view = board(&pool, alex).await;
+    move_column(&pool, alex, view.columns[2].id, 0).await.unwrap();
+    let names: Vec<String> =
+        get(&pool, alex, view.board.id).await.unwrap().columns.into_iter().map(|c| c.name).collect();
+    assert_eq!(names, ["Done", "To do", "Doing"]);
+
+    create_card(&pool, alex, view.columns[1].id, "card", "").await.unwrap();
+    assert!(matches!(delete_column(&pool, alex, view.columns[1].id).await, Err(Error::ColumnNotEmpty)));
+    delete_column(&pool, alex, view.columns[0].id).await.unwrap();
+
+    let renamed = update_column(
+        &pool,
+        alex,
+        view.columns[1].id,
+        ColumnChanges { name: Some("Now".into()), is_done: None, wip_limit: Some(Some(3)) },
+    )
+    .await
+    .unwrap();
+    assert_eq!((renamed.name.as_str(), renamed.wip_limit), ("Now", Some(3)));
+    let bad = ColumnChanges { wip_limit: Some(Some(0)), ..Default::default() };
+    assert!(matches!(
+        update_column(&pool, alex, view.columns[1].id, bad).await,
+        Err(Error::Invalid(Invalid::WipLimit))
+    ));
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn other_users_cannot_see_or_touch_a_board(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let sam = user(&pool, "sam").await;
+    let view = board(&pool, alex).await;
+    let card = create_card(&pool, alex, view.columns[0].id, "secret", "").await.unwrap();
+
+    assert_eq!(list(&pool, sam).await.unwrap(), [] as [laneway_db::boards::Board; 0]);
+    assert!(matches!(get(&pool, sam, view.board.id).await, Err(Error::NotFound)));
+    assert!(matches!(create_card(&pool, sam, view.columns[0].id, "x", "").await, Err(Error::NotFound)));
+    assert!(matches!(delete_card(&pool, sam, card.id).await, Err(Error::NotFound)));
+    assert!(matches!(move_card(&pool, sam, card.id, view.columns[1].id, 0).await, Err(Error::NotFound)));
+    assert!(matches!(history(&pool, sam, view.board.id, 10).await, Err(Error::NotFound)));
+
+    // Cards can't be moved into another user's board either.
+    let sams = board(&pool, sam).await;
+    assert!(matches!(move_card(&pool, alex, card.id, sams.columns[0].id, 0).await, Err(Error::NotFound)));
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn validation(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    assert!(matches!(
+        create(&pool, alex, "  ", "", true, &[]).await,
+        Err(Error::Invalid(Invalid::BoardName))
+    ));
+    let view = board(&pool, alex).await;
+    assert!(matches!(
+        create_card(&pool, alex, view.columns[0].id, "", "").await,
+        Err(Error::Invalid(Invalid::CardTitle))
+    ));
+    let long = "x".repeat(501);
+    assert!(matches!(
+        create_card(&pool, alex, view.columns[0].id, &long, "").await,
+        Err(Error::Invalid(Invalid::CardTitle))
+    ));
+    // Nothing was recorded for the failed calls.
+    assert_eq!(action_types(&pool, alex, view.board.id).await.len(), 4);
+}

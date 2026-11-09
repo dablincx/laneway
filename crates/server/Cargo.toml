@@ -1,0 +1,48 @@
+[package]
+name = "laneway-server"
+description = "laneway: the laneway binary (web app, API, MCP, worker)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "laneway"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+axum = "0.8.9"
+clap = { version = "4.6.7", features = ["derive", "env"] }
+laneway-config.workspace = true
+laneway-core.workspace = true
+laneway-db.workspace = true
+laneway-jobs.workspace = true
+laneway-i18n.workspace = true
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "runtime-tokio"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "signal", "net"] }
+tower-http = { version = "0.7.1", features = ["fs", "trace"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+utoipa = { version = "6.0.0", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-axum = "0.3.0"
+utoipa-scalar = { version = "0.4.0", features = ["axum"] }
+axum-extra = { version = "0.12.6", features = ["cookie"] }
+uuid = "1.29.2"
+chrono = "0.4.45"
+time = "0.3.55"
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "runtime-tokio", "macros", "migrate"] }
+tempfile = "3.27.0"
+tower = { version = "0.5.3", features = ["util"] }

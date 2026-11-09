@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Conventional Commits check. CI runs this same script on every pushed commit.
+msg="$(head -n1 "$1")"
+types="feat|fix|perf|refactor|docs|test|style|build|ci|chore|revert|bump|changelog"
+if [[ "$msg" =~ ^Merge\  ]] || [[ "$msg" =~ ^(fixup|squash)!\  ]]; then exit 0; fi
+if [[ ! "$msg" =~ ^($types)(\([a-z0-9-]+\))?!?:\ .+ ]]; then
+  echo "commit message must look like 'type(scope): description'" >&2
+  echo "types: ${types//|/, }" >&2
+  echo "got: $msg" >&2
+  exit 1
+fi

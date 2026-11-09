@@ -1,0 +1,57 @@
+# laneway with separate app and worker containers.
+# The app serves the web UI, API and MCP. The worker runs background jobs (git commits, emails, ...).
+# Splitting them lets you restart or scale them separately. For a small install,
+# compose.aio.yml runs both in one container instead.
+#
+#   1. Put this file and .env.example in a folder, rename .env.example to .env
+#   2. Fill in the required values in .env and add POSTGRES_PASSWORD=<random password> to it.
+#      LANEWAY_DATABASE_URL in .env is ignored here, compose builds it from POSTGRES_PASSWORD.
+#   3. docker compose up -d
+#
+# Every env var is documented in docs/configuration/environment-variables.md.
+
+name: laneway
+
+x-laneway: &laneway
+  image: ${LANEWAY_IMAGE:-ghcr.io/dablincx/laneway:latest}
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - data:/data
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *laneway
+    environment:
+      LANEWAY_PROCESS_ROLE: app
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
+    ports:
+      - "3000:3000"
+
+  worker:
+    <<: *laneway
+    environment:
+      LANEWAY_PROCESS_ROLE: worker
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: laneway
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: laneway
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U laneway"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  data:
+  postgres:

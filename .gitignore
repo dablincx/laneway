@@ -1,0 +1,17 @@
+# Rust
+/target
+
+# Web
+node_modules/
+/web/dist
+*.tsbuildinfo
+/web/test-results
+/web/playwright-report
+
+# Local only
+/docs/PLAN.md
+.env
+*.local
+
+# Claude Code worktrees
+/.claude/worktrees

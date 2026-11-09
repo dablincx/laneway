@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs SET finished_at = now() - interval '8 days'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "e274fb60ee8a9ad486390fdaa5564febf5084ec3eddde805d74408137b66ebaa"
+}

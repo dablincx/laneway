@@ -1,0 +1,46 @@
+name: commits
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-commits:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: commit messages
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # New branches have no "before" commit: check what isn't on main yet.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git merge-base HEAD origin/main 2>/dev/null || git rev-list --max-parents=0 HEAD)"
+          fi
+          # Same check as the local commit-msg hook.
+          status=0
+          for sha in $(git rev-list --no-merges "$BASE..HEAD"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
+            if ! bash scripts/git-hooks/commit-msg "$RUNNER_TEMP/msg"; then
+              echo "::error::commit $sha doesn't follow Conventional Commits: $(git log -1 --format=%s "$sha")"
+              status=1
+            fi
+          done
+          exit $status
+      - name: branch name
+        if: github.event_name == 'push'
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if ! echo "$BRANCH" | grep -Eq '^(main|release/v[0-9]+\.[0-9]+\.[0-9]+|(feat|fix|docs|chore|ci|refactor|perf|test|build)/[a-z0-9._-]+|dependabot/.+)$'; then
+            echo "branch '$BRANCH' doesn't follow the naming rules (see CONTRIBUTING.md)" >&2
+            exit 1
+          fi

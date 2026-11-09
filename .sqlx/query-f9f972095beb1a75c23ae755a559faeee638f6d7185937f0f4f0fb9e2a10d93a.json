@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM setup_tokens",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "f9f972095beb1a75c23ae755a559faeee638f6d7185937f0f4f0fb9e2a10d93a"
+}

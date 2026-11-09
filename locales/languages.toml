@@ -1,0 +1,8 @@
+# Languages laneway ships. To add one: copy en.ftl to <code>.ftl, translate it, add a line here.
+# Strings missing from a translation fall back to English.
+default = "en"
+
+[languages]
+en = "English"
+de = "Deutsch"
+fr = "Français"
