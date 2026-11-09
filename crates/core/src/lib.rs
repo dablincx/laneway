@@ -2,7 +2,9 @@
 //! validation, permission checks and recorded actions happen in exactly one place.
 
 pub mod accounts;
+pub mod boards;
 pub mod crypto;
+pub mod position;
 pub mod settings;
 
 /// Errors the service layer returns. The API maps each to a status code and a stable error code.
@@ -22,6 +24,8 @@ pub enum Error {
     UsernameTaken,
     #[error("not found")]
     NotFound,
+    #[error("the column still has cards")]
+    ColumnNotEmpty,
     #[error(transparent)]
     Auth(#[from] laneway_auth::Error),
     #[error(transparent)]
