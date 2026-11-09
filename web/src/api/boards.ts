@@ -4,6 +4,10 @@ export type Board = components["schemas"]["Board"];
 export type BoardDetail = components["schemas"]["BoardDetail"];
 export type Column = components["schemas"]["Column"];
 export type Card = components["schemas"]["Card"];
+export type CardChanges = components["schemas"]["UpdateCardRequest"];
+export type Priority = components["schemas"]["Priority"];
+/** Lowest first. */
+export const priorities: Priority[] = ["low", "medium", "high", "urgent"];
 
 export const boardsQuery = {
   queryKey: ["boards"],
@@ -68,11 +72,11 @@ export const boardApi = {
         body: { title },
       }),
     ),
-  updateCard: async (cardId: string, title: string, description: string) =>
+  updateCard: async (cardId: string, changes: CardChanges) =>
     unwrap(
       await api.PATCH("/api/v1/cards/{card_id}", {
         params: { path: { card_id: cardId } },
-        body: { title, description },
+        body: changes,
       }),
     ),
   moveCard: async (cardId: string, columnId: string, index: number) =>

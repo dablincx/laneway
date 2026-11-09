@@ -29,7 +29,7 @@ pub struct Column {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Card {
     pub id: Uuid,
     pub board_id: Uuid,
@@ -41,6 +41,12 @@ pub struct Card {
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// `low`, `medium`, `high` or `urgent`; `None` = no priority.
+    pub priority: Option<String>,
+    pub start_at: Option<DateTime<Utc>>,
+    pub due_at: Option<DateTime<Utc>>,
+    /// Story points or hours, whatever the board uses.
+    pub estimate: Option<f64>,
 }
 
 // --- boards ---
@@ -151,11 +157,13 @@ pub async fn card(executor: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
 pub async fn upsert_card(executor: impl PgExecutor<'_>, c: &Card) -> sqlx::Result<()> {
     sqlx::query!(
         "INSERT INTO cards (id, board_id, column_id, position, title, description, created_by, completed_at,
-                            created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                            created_at, updated_at, priority, start_at, due_at, estimate)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (id) DO UPDATE SET column_id = EXCLUDED.column_id, position = EXCLUDED.position,
              title = EXCLUDED.title, description = EXCLUDED.description,
-             completed_at = EXCLUDED.completed_at, updated_at = now()",
+             completed_at = EXCLUDED.completed_at, priority = EXCLUDED.priority,
+             start_at = EXCLUDED.start_at, due_at = EXCLUDED.due_at, estimate = EXCLUDED.estimate,
+             updated_at = now()",
         c.id,
         c.board_id,
         c.column_id,
@@ -166,6 +174,10 @@ pub async fn upsert_card(executor: impl PgExecutor<'_>, c: &Card) -> sqlx::Resul
         c.completed_at,
         c.created_at,
         c.updated_at,
+        c.priority,
+        c.start_at,
+        c.due_at,
+        c.estimate,
     )
     .execute(executor)
     .await?;

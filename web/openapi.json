@@ -873,6 +873,21 @@
             "type": "string",
             "description": "Markdown."
           },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "estimate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Story points or hours, whatever the board uses."
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -880,6 +895,23 @@
           "position": {
             "type": "string",
             "description": "Sort key within the column. Cards are returned in order."
+          },
+          "priority": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Priority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "title": {
             "type": "string"
@@ -1179,6 +1211,15 @@
           }
         }
       },
+      "Priority": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "urgent"
+        ]
+      },
       "SetupRequest": {
         "type": "object",
         "required": [
@@ -1237,7 +1278,42 @@
             "type": [
               "string",
               "null"
+            ],
+            "description": "Markdown."
+          },
+          "due_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Must not be before `start_at`."
+          },
+          "estimate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "0 to 100000."
+          },
+          "priority": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Priority",
+                "description": "A value sets it, `null` clears it, leaving it out keeps it (same for the fields below)."
+              },
+              {
+                "type": "null"
+              }
             ]
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "title": {
             "type": [

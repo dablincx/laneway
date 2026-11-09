@@ -27,6 +27,10 @@ pub enum Invalid {
     Description,
     WipLimit,
     Position,
+    Priority,
+    /// The start date is after the due date.
+    Dates,
+    Estimate,
 }
 
 /// Account details for a new user.

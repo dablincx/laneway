@@ -52,6 +52,26 @@
         "ordinal": 9,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "priority",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "start_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "due_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "estimate",
+        "type_info": "Float8"
       }
     ],
     "parameters": {
@@ -69,7 +89,11 @@
       false,
       true,
       false,
-      false
+      false,
+      true,
+      true,
+      true,
+      true
     ]
   },
   "hash": "aac50d3d02f904abd5091117b38e4628acba3a6c7e8dc1461c3e1ac6b63dee29"

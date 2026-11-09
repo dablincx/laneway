@@ -102,6 +102,35 @@ pub struct Card {
     completed_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
+    priority: Option<Priority>,
+    start_at: Option<DateTime<Utc>>,
+    due_at: Option<DateTime<Utc>>,
+    /// Story points or hours, whatever the board uses.
+    estimate: Option<f64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Priority {
+    Low,
+    Medium,
+    High,
+    Urgent,
+}
+
+impl Priority {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Urgent => "urgent",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        [Self::Low, Self::Medium, Self::High, Self::Urgent].into_iter().find(|p| p.as_str() == value)
+    }
 }
 
 impl From<laneway_db::boards::Card> for Card {
@@ -117,6 +146,10 @@ impl From<laneway_db::boards::Card> for Card {
             completed_at: c.completed_at,
             created_at: c.created_at,
             updated_at: c.updated_at,
+            priority: c.priority.as_deref().and_then(Priority::parse),
+            start_at: c.start_at,
+            due_at: c.due_at,
+            estimate: c.estimate,
         }
     }
 }
@@ -313,8 +346,11 @@ pub struct UpdateColumnRequest {
     wip_limit: Option<Option<i32>>,
 }
 
-fn double_option<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<i32>>, D::Error> {
-    Option::<i32>::deserialize(d).map(Some)
+/// For PATCH fields where `null` (clear) differs from leaving the field out (keep).
+fn double_option<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<Option<T>>, D::Error> {
+    Option::<T>::deserialize(d).map(Some)
 }
 
 /// Changes a column. Fields left out stay as they are.
@@ -398,7 +434,23 @@ async fn create_card(
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateCardRequest {
     title: Option<String>,
+    /// Markdown.
     description: Option<String>,
+    /// A value sets it, `null` clears it, leaving it out keeps it (same for the fields below).
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<Priority>)]
+    priority: Option<Option<Priority>>,
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<DateTime<Utc>>)]
+    start_at: Option<Option<DateTime<Utc>>>,
+    /// Must not be before `start_at`.
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<DateTime<Utc>>)]
+    due_at: Option<Option<DateTime<Utc>>>,
+    /// 0 to 100000.
+    #[serde(default, deserialize_with = "double_option")]
+    #[schema(value_type = Option<f64>)]
+    estimate: Option<Option<f64>>,
 }
 
 /// Changes a card. Fields left out stay as they are.
@@ -412,7 +464,14 @@ async fn update_card(
     Path(card_id): Path<Uuid>,
     Body(body): Body<UpdateCardRequest>,
 ) -> Result<Json<Card>, ApiError> {
-    let changes = CardChanges { title: body.title, description: body.description };
+    let changes = CardChanges {
+        title: body.title,
+        description: body.description,
+        priority: body.priority.map(|p| p.map(|p| p.as_str().to_owned())),
+        start_at: body.start_at,
+        due_at: body.due_at,
+        estimate: body.estimate,
+    };
     Ok(Json(boards::update_card(&state.pool, actor(&user), card_id, changes).await?.into()))
 }
 

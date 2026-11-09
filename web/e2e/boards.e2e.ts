@@ -46,7 +46,77 @@ test("create a board, add cards, move one to done", async ({ page }) => {
   await expect(done.getByRole("button", { name: "bread" })).toBeVisible();
   await expect(todo.getByRole("button", { name: "milk" })).toBeVisible();
   await done.getByRole("button", { name: "bread" }).click();
+  // A card with a description opens on the rendered text.
+  await expect(page.getByTestId("card-description-preview")).toHaveText("whole grain");
+  await page.getByRole("button", { name: en("card-description-write") }).click();
   await expect(page.getByLabel(en("card-field-description"), { exact: true })).toHaveValue("whole grain");
+});
+
+test("card details: priority, dates, estimate and safe markdown", async ({ page }) => {
+  const { todo } = await newBoard(page, "e2e card details", ["file taxes"]);
+  await todo.getByRole("button", { name: "file taxes" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(en("card-field-priority")).selectOption({ label: en("card-priority-urgent") });
+  await dialog.getByLabel(en("card-field-start")).fill("2020-01-01");
+  await dialog.getByLabel(en("card-field-due")).fill("2020-01-02");
+  await dialog.getByLabel(en("card-field-estimate"), { exact: true }).fill("2.5");
+  const markdown = [
+    "**bold** and _italic_",
+    "",
+    "- [x] done item",
+    "",
+    "<b>raw html</b> <img src=x onerror=alert(1)>",
+    "",
+    "[bad link](javascript:alert(1)) [good link](https://example.com)",
+  ].join("\n");
+  await dialog.getByLabel(en("card-field-description"), { exact: true }).fill(markdown);
+  await dialog.getByRole("button", { name: en("card-description-preview") }).click();
+  const preview = dialog.getByTestId("card-description-preview");
+  await expect(preview.locator("strong")).toHaveText("bold");
+  await expect(preview.locator("em")).toHaveText("italic");
+  await expect(preview.getByRole("checkbox")).toBeChecked();
+  // Raw HTML is never rendered, and unsafe links lose their target.
+  await expect(preview.locator("b, img, script")).toHaveCount(0);
+  await expect(preview.getByRole("link", { name: "good link" })).toHaveAttribute(
+    "href",
+    "https://example.com",
+  );
+  await expect(preview.getByRole("link", { name: "good link" })).toHaveAttribute("rel", /noopener/);
+  const bad = await preview
+    .getByText("bad link")
+    .evaluate((el) => el.closest("a")?.getAttribute("href") ?? "");
+  expect(bad).not.toContain("javascript");
+  await dialog.getByRole("button", { name: en("common-save") }).click();
+  await expect(dialog).toBeHidden();
+
+  // The card shows it all, and it's overdue (2020).
+  const overdueText = new RegExp(`^${text("en", "card-overdue", { date: "@" }).split("@")[0]}`);
+  const card = todo.getByRole("button", { name: /file taxes/ });
+  await expect(card.getByText(en("card-priority-urgent"))).toBeVisible();
+  await expect(card.getByText(overdueText)).toBeVisible();
+  await expect(card.getByText("2.5")).toBeVisible();
+  await expect(card.getByLabel(en("card-has-description"))).toBeVisible();
+
+  // Survives a reload, and the dates come back as picked.
+  await page.reload();
+  await todo.getByRole("button", { name: /file taxes/ }).click();
+  await expect(dialog.getByLabel(en("card-field-due"))).toHaveValue("2020-01-02");
+  await expect(dialog.getByLabel(en("card-field-start"))).toHaveValue("2020-01-01");
+  await expect(dialog.getByLabel(en("card-field-priority"))).toHaveValue("urgent");
+
+  // Start after due is refused with a translated message.
+  await dialog.getByLabel(en("card-field-start")).fill("2020-02-01");
+  await dialog.getByRole("button", { name: en("common-save") }).click();
+  await expect(dialog.getByText(en("error-invalid-dates"))).toBeVisible();
+
+  // Clearing works too.
+  await dialog.getByLabel(en("card-field-start")).fill("");
+  await dialog.getByLabel(en("card-field-due")).fill("");
+  await dialog.getByLabel(en("card-field-priority")).selectOption({ label: en("card-priority-none") });
+  await dialog.getByRole("button", { name: en("common-save") }).click();
+  await expect(dialog).toBeHidden();
+  await expect(card.getByText(en("card-priority-urgent"))).toBeHidden();
+  await expect(card.getByText(overdueText)).toBeHidden();
 });
 
 async function newBoard(page: import("@playwright/test").Page, name: string, cards: string[]) {

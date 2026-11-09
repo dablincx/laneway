@@ -305,3 +305,47 @@ async fn malformed_requests_use_the_error_format(pool: PgPool) {
         assert_eq!(json["error"]["code"], code);
     }
 }
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn card_details_patch_set_keep_clear(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+    let created = api.post("/api/v1/boards", json!({"name": "Home", "columns": [{"name": "To do"}]})).await;
+    let todo = created.body["columns"][0]["id"].as_str().unwrap().to_owned();
+    let card = api.post(&format!("/api/v1/columns/{todo}/cards"), json!({"title": "Taxes"})).await;
+    let uri = format!("/api/v1/cards/{}", card.body["id"].as_str().unwrap());
+    assert!(card.body["priority"].is_null() && card.body["due_at"].is_null());
+
+    let set = json!({
+        "priority": "urgent",
+        "start_at": "2026-03-01T09:00:00Z",
+        "due_at": "2026-03-10T17:00:00Z",
+        "estimate": 3,
+    });
+    let reply = api.call("PATCH", &uri, Some(set), Some(PUBLIC_URL)).await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.body);
+    assert_eq!(reply.body["priority"], "urgent");
+    assert_eq!(reply.body["due_at"], "2026-03-10T17:00:00Z");
+    assert_eq!(reply.body["estimate"], 3.0);
+
+    // Left out = kept, null = cleared.
+    let reply =
+        api.call("PATCH", &uri, Some(json!({"title": "Taxes!", "estimate": null})), Some(PUBLIC_URL)).await;
+    assert_eq!(reply.body["priority"], "urgent");
+    assert!(reply.body["estimate"].is_null(), "{}", reply.body);
+
+    let backwards = json!({"start_at": "2026-04-01T00:00:00Z"});
+    let reply = api.call("PATCH", &uri, Some(backwards), Some(PUBLIC_URL)).await;
+    assert_eq!(
+        (reply.status, reply.body["error"]["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("invalid_dates"))
+    );
+    let reply = api.call("PATCH", &uri, Some(json!({"estimate": -1})), Some(PUBLIC_URL)).await;
+    assert_eq!(reply.body["error"]["code"], "invalid_estimate");
+    // An unknown priority doesn't fit the request schema at all.
+    let reply = api.call("PATCH", &uri, Some(json!({"priority": "whenever"})), Some(PUBLIC_URL)).await;
+    assert_eq!(
+        (reply.status, reply.body["error"]["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("invalid_request"))
+    );
+}
