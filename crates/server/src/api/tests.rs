@@ -241,3 +241,30 @@ async fn invalid_board_input_and_unknown_ids(pool: PgPool) {
     let missing = api.get(&format!("/api/v1/boards/{}", laneway_db::new_id())).await;
     assert_eq!(missing.status, StatusCode::NOT_FOUND);
 }
+
+/// Behind a reverse proxy without trusted proxy headers every request has the proxy's address.
+/// Failed logins for one name must not lock everybody else out.
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn failed_logins_dont_lock_out_other_users_behind_a_proxy(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+    api.cookie = None;
+    let proxy = std::net::SocketAddr::from(([172, 18, 0, 2], 50000));
+
+    let login = |api: &Api, login: &str, password: &str| {
+        let mut req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/login")
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::ORIGIN, PUBLIC_URL)
+            .body(Body::from(json!({"login": login, "password": password}).to_string()))
+            .unwrap();
+        req.extensions_mut().insert(axum::extract::ConnectInfo(proxy));
+        api.router.clone().oneshot(req)
+    };
+    for _ in 0..12 {
+        login(&api, "someone-else", "wrong password!!").await.unwrap();
+    }
+    let response = login(&api, "admin", "a long enough password").await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}

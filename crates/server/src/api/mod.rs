@@ -157,7 +157,12 @@ async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<Me>), ApiError> {
     let mut keys = vec![format!("login:{}", body.login.trim().to_lowercase())];
-    if let Some(ip) = client.ip {
+    // Limit by IP only when we know the real client address. Behind a reverse proxy without
+    // trusted proxy headers every request has the proxy's address, and an IP limit would lock
+    // everybody out after a few wrong passwords from anyone.
+    if state.trust_proxy_headers
+        && let Some(ip) = client.ip
+    {
         keys.push(format!("ip:{ip}"));
     }
     if !state.login_limiter.allowed(&keys) {

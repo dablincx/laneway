@@ -77,12 +77,14 @@ impl FromRequestParts<AppState> for Client {
     }
 }
 
-/// Forwarded headers only count behind a trusted proxy.
+/// Forwarded headers only count behind a trusted proxy (`LANEWAY_TRUST_PROXY_HEADERS`).
 fn client_info(state: &AppState, headers: &HeaderMap, peer: Option<SocketAddr>) -> ClientInfo {
     let forwarded = state
         .trust_proxy_headers
         .then(|| {
-            headers.get("x-forwarded-for")?.to_str().ok()?.split(',').next()?.trim().parse::<IpAddr>().ok()
+            // The rightmost entry is the one our proxy appended. Entries left of it come from the
+            // client and can say anything.
+            headers.get("x-forwarded-for")?.to_str().ok()?.rsplit(',').next()?.trim().parse::<IpAddr>().ok()
         })
         .flatten();
     ClientInfo {
@@ -109,4 +111,38 @@ fn same_origin(state: &AppState, headers: &HeaderMap) -> bool {
     }
     // No Origin header: only allow when the browser says it's same-origin.
     headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()) == Some("same-origin")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state(trust: bool) -> AppState {
+        let mut state = crate::http::tests::state(
+            sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://nobody@127.0.0.1:1/none").unwrap(),
+        );
+        state.trust_proxy_headers = trust;
+        state
+    }
+
+    fn headers(xff: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert("x-forwarded-for", xff.parse().unwrap());
+        h
+    }
+
+    #[tokio::test]
+    async fn forwarded_for_uses_the_entry_our_proxy_added() {
+        let peer = Some(SocketAddr::from(([10, 0, 0, 2], 40000)));
+        // The client sent "1.2.3.4" itself; the proxy appended the real address.
+        let info = client_info(&state(true), &headers("1.2.3.4, 203.0.113.7"), peer);
+        assert_eq!(info.ip, Some("203.0.113.7".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn forwarded_for_is_ignored_unless_trusted() {
+        let peer = Some(SocketAddr::from(([10, 0, 0, 2], 40000)));
+        let info = client_info(&state(false), &headers("203.0.113.7"), peer);
+        assert_eq!(info.ip, Some("10.0.0.2".parse().unwrap()));
+    }
 }
