@@ -2,6 +2,10 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.5 (2026-11-09)
+
+No changes to the app itself in this release (internal fixes only).
+
 ## 0.1.4 (2026-11-09)
 
 ### Bug fixes
