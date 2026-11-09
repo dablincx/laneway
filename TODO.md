@@ -39,7 +39,7 @@ feature they belong to.
 - [x] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`)
 - [x] Job queue: test the concurrent-claim race (many workers, same serial key)
 - [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
-- [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
+- [x] Hourly cleanup of expired sessions in the worker
 - [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
 - [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)
 - [ ] Link check: external links too, in a scheduled job that opens an issue instead of failing pushes

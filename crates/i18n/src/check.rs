@@ -396,7 +396,8 @@ pub fn literal_ui_text(source: &str) -> Vec<(usize, String)> {
 
     // Text-bearing attributes with a plain string value: `placeholder="Search"`.
     static TEXT_ATTRIBUTE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r#"\b(?:placeholder|title|aria-label|alt)\s*=\s*(?:"([^"]*)"|'([^']*)')"#).expect("valid regex")
+        Regex::new(r#"\b(?:placeholder|title|aria-label|alt)\s*=\s*(?:"([^"]*)"|'([^']*)')"#)
+            .expect("valid regex")
     });
 
     let mut found = Vec::new();
