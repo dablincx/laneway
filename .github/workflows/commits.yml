@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   conventional-commits:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

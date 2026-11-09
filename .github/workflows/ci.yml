@@ -17,6 +17,8 @@ env:
 
 jobs:
   rust:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     name: rust (${{ matrix.arch }})
     strategy:
       fail-fast: false
@@ -66,6 +68,8 @@ jobs:
         run: cargo run -q -p laneway-server -- i18n check
 
   coverage:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -101,12 +105,16 @@ jobs:
           if-no-files-found: ignore
 
   deny:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   links:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -119,6 +127,8 @@ jobs:
           fail: true
 
   web:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -138,6 +148,8 @@ jobs:
       - run: pnpm build
 
   docker:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -179,6 +191,8 @@ jobs:
           if-no-files-found: ignore
 
   dev-container:
+    # PRs from this repo already get the push run; the pull_request run is only for forks.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
