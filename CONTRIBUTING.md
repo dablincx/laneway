@@ -36,6 +36,10 @@ that checks this, and CI checks it again.
 
 `!` after the type or a `BREAKING CHANGE:` footer marks a breaking change.
 
+The changelog only lists changes to the app itself. Commits with the internal scopes `ci`, `e2e`,
+`dev`, `claude`, `contributing` or `changelog` are left out, and `build` only shows up with the
+`docker` or `deps` scope. So scope internal work accordingly, e.g. `fix(ci): ...`.
+
 ## Branches
 
 - `main` is always releasable and only gets merges and release commits.

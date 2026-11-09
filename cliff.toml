@@ -39,7 +39,12 @@ protect_breaking_commits = true
 filter_commits = false
 tag_pattern = "v[0-9].*"
 sort_commits = "oldest"
+# The changelog is for people running laneway: only changes to the app itself.
+# Internal scopes (CI, tests, dev tooling, contributor docs, Claude rules) are left out.
 commit_parsers = [
+  { message = "^[a-z]+\\((ci|e2e|dev|claude|contributing|changelog)\\)", skip = true },
+  { message = "^build\\((docker|deps)\\)", group = "<!-- 6 -->Build" },
+  { message = "^build", skip = true },
   { message = "^bump", skip = true },
   { message = "^changelog", skip = true },
   { message = "^chore", skip = true },
@@ -52,6 +57,5 @@ commit_parsers = [
   { message = "^perf", group = "<!-- 3 -->Performance" },
   { message = "^refactor", group = "<!-- 4 -->Refactoring" },
   { message = "^docs", group = "<!-- 5 -->Documentation" },
-  { message = "^build", group = "<!-- 6 -->Build" },
   { message = "^revert", group = "<!-- 7 -->Reverts" },
 ]

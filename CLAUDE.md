@@ -30,6 +30,9 @@ Rules for Claude working on laneway. Read this first in every session.
 - Commits: Conventional Commits, `type(scope): description`, lowercase. Types: feat, fix, perf,
   refactor, docs, test, style, build, ci, chore, revert, bump, changelog. Checked by
   `scripts/git-hooks/commit-msg` and CI.
+- The changelog is for people running laneway. Scope internal work with `ci`, `e2e`, `dev`, `claude`,
+  `contributing` or `changelog` (left out of the changelog). `build` only appears as `build(docker)`
+  or `build(deps)`.
 - Update `TODO.md` in the same commit that finishes or adds something. New gaps, shortcuts and ideas
   go in as unchecked items right away.
 - Every feature ships with tests, every bug fix with a regression test that fails without the fix.
