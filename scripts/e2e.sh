@@ -89,8 +89,9 @@ else
   pids+=($!)
   wait_for "http://localhost:$port/readyz"
 
+  # The vite binary itself, not `pnpm exec`: killing pnpm would leave vite running.
   (cd web && LANEWAY_DEV_SERVER_URL="http://localhost:$port" \
-    exec pnpm exec vite --port "$web_port" --strictPort >"$tmp/vite.log" 2>&1) &
+    exec node_modules/.bin/vite --port "$web_port" --strictPort >"$tmp/vite.log" 2>&1) &
   pids+=($!)
   wait_for "http://localhost:$web_port/"
   export LANEWAY_E2E_BASE_URL="http://localhost:$web_port"
