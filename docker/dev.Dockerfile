@@ -8,7 +8,9 @@ RUN apt-get update \
     && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/* \
-    && corepack enable
+    && corepack enable \
+    && PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers npx -y playwright@1.63.0 install --with-deps chromium \
+    && chmod -R a+rX /opt/pw-browsers
 
 RUN rustup component add rustfmt clippy llvm-tools-preview \
     && curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash \
@@ -23,7 +25,8 @@ RUN groupadd --gid ${GID} dev 2>/dev/null || true \
     && useradd --uid ${UID} --gid ${GID} --create-home --shell /bin/bash dev 2>/dev/null || true \
     && echo "dev ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/dev
 
-ENV CARGO_HOME=/cache/cargo \
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
+    CARGO_HOME=/cache/cargo \
     CARGO_TARGET_DIR=/cache/target \
     RUSTC_WRAPPER=sccache \
     SCCACHE_DIR=/cache/sccache \
