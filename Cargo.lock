@@ -1041,8 +1041,13 @@ dependencies = [
  "aes-gcm",
  "base64",
  "hkdf",
+ "laneway-config",
+ "laneway-db",
  "sha2",
+ "sqlx",
  "thiserror",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

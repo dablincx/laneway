@@ -4,3 +4,4 @@
 //! database settings layer.
 
 pub mod crypto;
+pub mod settings;
