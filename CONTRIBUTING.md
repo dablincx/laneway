@@ -53,6 +53,14 @@ UI text lives in `locales/<language>.ftl` ([Fluent](https://projectfluent.org/))
 copy `locales/en.ftl` to `locales/<code>.ftl`, translate it, and add a line to
 `locales/languages.toml`. Anything not translated yet falls back to English.
 
+`./dev.sh lint` runs `laneway i18n check` (also on its own:
+`./dev.sh cargo run -p laneway-server -- i18n check`). It fails on Fluent syntax errors, messages
+that no longer exist in `en.ftl`, translations whose `{ $variables }` differ from English, ids in
+`en.ftl` that no code uses, and literal text in the web UI's JSX (use `t("...")`, or put
+`i18n-ignore` in a comment on the line if it really isn't UI text). Messages missing from a
+translation are only warnings. Ids count as used when they appear as a quoted string, so write
+them out in full instead of building them at runtime.
+
 ## Releases
 
 Maintainers run `./dev.sh bump <major|minor|patch>` on `main` and push. The release workflow writes

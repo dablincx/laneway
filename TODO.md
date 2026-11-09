@@ -14,7 +14,9 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [x] Web UI i18n: one Fluent file per language, English fallback, en/de/fr
 - [ ] Verify the release workflow end to end with the first `bump: v0.1.0`
 - [ ] Verify the dev container (`./dev.sh up` without native mode) on a normal machine; it can't build in cloud sessions
-- [ ] i18n crate (`fluent-rs`) + `laneway i18n check` (missing/unused keys, syntax) in CI, lint rule against literal UI strings
+- [x] i18n crate (`fluent-rs`) + `laneway i18n check` (missing/unused keys, syntax) in CI, lint rule against literal UI strings
+- [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
+- [ ] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`); today only text nodes are checked
 - [x] Postgres 18 + sqlx migrations (advisory lock on start), version check, UUIDv7 everywhere, `/readyz` checks DB
 - [x] Job queue crate (serial keys, replace keys for debouncing, delayed jobs, retries with backoff, leases, LISTEN/NOTIFY), worker role runs it
 - [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load

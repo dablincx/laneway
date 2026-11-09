@@ -6,4 +6,5 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo run -q -p laneway-server -- config docs --check
 cargo sqlx prepare --workspace --check -- --all-targets
+cargo run -q -p laneway-server -- i18n check
 (cd web && pnpm lint && pnpm typecheck)

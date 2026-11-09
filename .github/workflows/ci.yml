@@ -56,6 +56,9 @@ jobs:
         run: cargo run -q -p laneway-server -- config docs --check
       - name: sqlx offline query data up to date
         run: cargo sqlx prepare --workspace --check -- --all-targets
+      - name: translations (laneway i18n check)
+        if: matrix.arch == 'amd64'
+        run: cargo run -q -p laneway-server -- i18n check
 
   deny:
     runs-on: ubuntu-latest
