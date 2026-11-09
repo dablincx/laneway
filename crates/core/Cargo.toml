@@ -17,6 +17,8 @@ hkdf = "0.12.4"
 laneway-auth.workspace = true
 laneway-config.workspace = true
 laneway-db.workspace = true
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 sha2 = "0.10.9"
 sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "macros", "uuid", "chrono"] }
 thiserror = "2.0.21"
@@ -27,5 +29,6 @@ uuid = "1.29.2"
 workspace = true
 
 [dev-dependencies]
+proptest = "1.12.0"
 sqlx = { version = "0.8.6", default-features = false, features = ["postgres", "macros", "migrate", "runtime-tokio"] }
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros"] }
