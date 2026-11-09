@@ -1,0 +1,47 @@
+# laneway all in one: web UI, API, MCP and the background worker in a single container
+# (LANEWAY_PROCESS_ROLE=all, the default). Fine for small installs. compose.yml shows the split
+# setup with separate app and worker containers.
+#
+#   1. Put this file and .env.example in a folder, rename .env.example to .env
+#   2. Fill in the required values in .env and add POSTGRES_PASSWORD=<random password> to it.
+#      LANEWAY_DATABASE_URL in .env is ignored here, compose builds it from POSTGRES_PASSWORD.
+#   3. docker compose -f compose.aio.yml up -d
+#
+# Every env var is documented in docs/configuration/environment-variables.md.
+
+name: laneway
+
+services:
+  laneway:
+    image: ${LANEWAY_IMAGE:-ghcr.io/dablincx/laneway:latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      LANEWAY_PROCESS_ROLE: all
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
+    ports:
+      - "3000:3000"
+    volumes:
+      - data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: laneway
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: laneway
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U laneway"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  data:
+  postgres:

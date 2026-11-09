@@ -1,15 +1,19 @@
-# Example production setup for laneway.
-#   1. Copy this file and .env.example next to each other, rename .env.example to .env
-#   2. Fill in the required values in .env, and add POSTGRES_PASSWORD=<random password> to it.
+# laneway with separate app and worker containers.
+# The app serves the web UI, API and MCP. The worker runs background jobs (git commits, emails, ...).
+# Splitting them lets you restart or scale them separately. For a small install,
+# compose.aio.yml runs both in one container instead.
+#
+#   1. Put this file and .env.example in a folder, rename .env.example to .env
+#   2. Fill in the required values in .env and add POSTGRES_PASSWORD=<random password> to it.
 #      LANEWAY_DATABASE_URL in .env is ignored here, compose builds it from POSTGRES_PASSWORD.
 #   3. docker compose up -d
+#
 # Every env var is documented in docs/configuration/environment-variables.md.
-# Not usable yet: laneway hasn't had its first release.
 
 name: laneway
 
 x-laneway: &laneway
-  image: ghcr.io/dablincx/laneway:latest
+  image: ${LANEWAY_IMAGE:-ghcr.io/dablincx/laneway:latest}
   restart: unless-stopped
   env_file: .env
   volumes:
@@ -19,23 +23,19 @@ x-laneway: &laneway
       condition: service_healthy
 
 services:
-  # Web UI, API and MCP server.
   app:
     <<: *laneway
     environment:
-      # Points at the postgres service below, using POSTGRES_PASSWORD from .env.
-      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
       LANEWAY_PROCESS_ROLE: app
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
     ports:
       - "3000:3000"
 
-  # Background jobs (git commits, emails, ...). For small installs you can drop this service and
-  # set LANEWAY_PROCESS_ROLE=all on app instead.
   worker:
     <<: *laneway
     environment:
-      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
       LANEWAY_PROCESS_ROLE: worker
+      LANEWAY_DATABASE_URL: postgres://laneway:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/laneway
 
   postgres:
     image: postgres:18
