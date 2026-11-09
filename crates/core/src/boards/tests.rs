@@ -11,7 +11,9 @@ async fn user(pool: &PgPool, username: &str) -> Actor {
         password: "a long enough password".into(),
     };
     // First call creates an admin; later users go through the same insert path.
-    let id = if let Some(u) = ensure_initial_admin(pool, &account).await.unwrap() { u.id } else {
+    let id = if let Some(u) = ensure_initial_admin(pool, &account).await.unwrap() {
+        u.id
+    } else {
         let mut tx = pool.begin().await.unwrap();
         let u = crate::accounts::tests_support::create_plain_user(&mut tx, &account).await;
         tx.commit().await.unwrap();
