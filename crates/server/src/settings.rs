@@ -153,7 +153,7 @@ mod tests {
         assert!(out.starts_with("SETTING "), "{out}");
         assert_eq!(
             squash(line(&out, "LANEWAY_PUBLIC_URL")),
-            "LANEWAY_PUBLIC_URL https://laneway.example.com env"
+            "LANEWAY_PUBLIC_URL https://laneway.example.com env, env var only"
         );
         assert_eq!(squash(line(&out, "LANEWAY_SECRET_KEY")), "LANEWAY_SECRET_KEY *** env, env var only");
         assert_eq!(squash(line(&out, "LANEWAY_DATABASE_URL")), "LANEWAY_DATABASE_URL *** env, env var only");

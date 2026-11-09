@@ -36,21 +36,19 @@ Gaps and shortcuts found while building v0.1.0. Pick them up when they get in th
 feature they belong to.
 
 - [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
-- [ ] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`); today only text nodes are checked
-- [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
-- [ ] Job queue: show jobs in the admin job monitor (v0.3)
-- [ ] Config: let required non-bootstrap settings (`LANEWAY_PUBLIC_URL`) come from the DB only; today the first env-only load still needs them in the env
+- [x] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`)
+- [x] Job queue: test the concurrent-claim race (many workers, same serial key)
 - [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
-- [ ] Config: settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
-- [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
+- [x] Hourly cleanup of expired sessions in the worker
 - [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
 - [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)
-- [ ] Link check: external links too, in a scheduled job that opens an issue instead of failing pushes
-- [ ] Coverage: >=90% lines for core, auth, git-store and the permission resolver, each gated on its own (today core ~98%, auth ~95%, not gated per crate)
+- [x] Link check: external links too, in a weekly scheduled job that opens an issue instead of failing pushes
+- [x] Coverage: per-crate gates, core and auth >= 90% lines
+- [ ] Coverage: add git-store and the permission resolver to the per-crate gates (>= 90%) when they exist; core is at 90.3% after boards, add tests for its error paths
 - [ ] Coverage: >=80% lines overall as a floor that stays (today 83%; the server crate is ~60%, its CLI and worker paths have no tests)
 - [ ] Coverage: count the e2e runs too (instrumented server binary)
-- [ ] e2e: run the tests in Firefox and WebKit too, not only Chromium
-- [ ] e2e: `./dev.sh e2e` without native mode needs Playwright's Chromium in the dev container
+- [x] e2e: run the tests in Firefox and WebKit too, not only Chromium
+- [x] e2e: Playwright's Chromium in the dev container for `./dev.sh e2e`
 
 ## v0.2.0 Full kanban (`feat/kanban`)
 
@@ -65,6 +63,8 @@ feature they belong to.
 
 - [ ] Registration modes, SMTP email (verification, reset, invites, login alerts)
 - [ ] TOTP 2FA, sessions list, admin panel, audit log, setup guide (§7, §14)
+- [ ] Admin job monitor (queued, running, failed jobs with their errors, retry button)
+- [ ] Settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
 - [ ] Workspaces, groups, roles + flags, board levels, resolver, sync toggle, `effective_access`, explain endpoints + UI (§8)
 - [ ] Workspace + board invites, "Shared with me"
 

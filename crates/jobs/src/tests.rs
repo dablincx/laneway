@@ -209,3 +209,29 @@ async fn worker_runs_jobs_end_to_end(pool: PgPool) {
     handle.await.unwrap().unwrap();
     assert_eq!(runs.load(Ordering::SeqCst), 6);
 }
+
+/// Many workers claiming at the same moment: a serial key never runs twice in parallel, and
+/// losing the race shows up as "nothing to do", not as an error.
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn concurrent_claims_respect_serial_keys(pool: PgPool) {
+    let k = kinds(&["git.commit"]);
+    for n in 0..5 {
+        enqueue(&pool, NewJob::new("git.commit", &json!(n)).unwrap().serial("board")).await.unwrap();
+    }
+    for round in 0..5 {
+        let mut claims = tokio::task::JoinSet::new();
+        for worker in 0..16 {
+            let (pool, k) = (pool.clone(), k.clone());
+            claims.spawn(async move { claim(&pool, &format!("w{round}-{worker}"), &k, LEASE).await });
+        }
+        let mut won = Vec::new();
+        while let Some(result) = claims.join_next().await {
+            if let Some(job) = result.unwrap().expect("losing the race is not an error") {
+                won.push(job);
+            }
+        }
+        assert_eq!(won.len(), 1, "round {round}: exactly one worker gets the serial key");
+        assert_eq!(won[0].payload, json!(round), "jobs run in enqueue order");
+        complete(&pool, won[0].id).await.unwrap();
+    }
+}

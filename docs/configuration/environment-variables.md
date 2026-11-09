@@ -10,7 +10,7 @@ Invalid values stop laneway at startup with a message naming the variable.
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `LANEWAY_PUBLIC_URL` | URL | **required** | Public base URL of the instance, used for links, emails and OAuth. Example: `https://laneway.example.com` |
+| `LANEWAY_PUBLIC_URL` | URL | **required** | Public base URL of the instance, used for links, emails and OAuth. Env var only. Example: `https://laneway.example.com` |
 | `LANEWAY_SECRET_KEY` | string, at least 32 characters | **required** | Master key for sessions and for encrypting secrets at rest. Generate one with `openssl rand -hex 32`. Changing it logs everyone out and makes stored secrets unreadable. Env var only. Secret, also accepts `LANEWAY_SECRET_KEY_FILE`. Example: `replace-with-output-of-openssl-rand-hex-32` |
 | `LANEWAY_PROCESS_ROLE` | one of `app`, `worker`, `all` | `all` | Which part of laneway this container runs: the web app + API, the background worker, or both in one process (fine for small installs). Env var only. Example: `all` |
 | `LANEWAY_DEFAULT_LOCALE` | locale code (e.g. `en`, `de`, `pt-BR`) | `en` | Language for new users and logged-out pages. Example: `en` |
