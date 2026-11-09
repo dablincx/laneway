@@ -11,7 +11,11 @@ git clone -q "$root" "$tmp/repo"
 cd "$tmp/repo"
 git config user.name "release test"
 git config user.email "release-test@example.invalid"
-# A release whose only commit is internal.
+# A release whose only commit is internal: start from the latest release, so app changes that
+# are still unreleased on the current branch don't end up in it.
+if latest="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null)"; then
+  git checkout -q "$latest"
+fi
 git commit -q --allow-empty -m "fix(ci): something internal"
 bash scripts/release-notes.sh 9.9.9 "$tmp/notes.md"
 
