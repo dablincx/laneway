@@ -12,7 +12,7 @@ RUN apt-get update \
 
 RUN rustup component add rustfmt clippy \
     && curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash \
-    && cargo binstall -y --locked cargo-nextest cargo-watch cargo-deny sqlx-cli sccache git-cliff cocogitto \
+    && cargo binstall -y --locked cargo-nextest cargo-watch cargo-deny sqlx-cli sccache git-cliff \
     && mv /usr/local/cargo/bin/* /usr/local/bin/ \
     && chmod -R a+rwX /usr/local/cargo /usr/local/rustup
 
