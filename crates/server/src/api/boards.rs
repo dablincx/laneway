@@ -1,7 +1,7 @@
 //! Boards, columns and cards.
 
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use laneway_core::boards::{self, Actor, BoardChanges, CardChanges, ColumnChanges, NewColumn};
@@ -12,6 +12,7 @@ use utoipa_axum::routes;
 use uuid::Uuid;
 
 use super::error::{ApiError, ErrorBody};
+use super::extract::{Body, Path};
 use super::session::CurrentUser;
 use crate::http::AppState;
 
@@ -187,7 +188,7 @@ pub struct CreateBoardRequest {
 async fn create_board(
     State(state): State<AppState>,
     user: CurrentUser,
-    Json(body): Json<CreateBoardRequest>,
+    Body(body): Body<CreateBoardRequest>,
 ) -> Result<(StatusCode, Json<BoardDetail>), ApiError> {
     let columns: Vec<NewColumn> =
         body.columns.into_iter().map(|c| NewColumn { name: c.name, is_done: c.is_done }).collect();
@@ -232,7 +233,7 @@ async fn update_board(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(board_id): Path<Uuid>,
-    Json(body): Json<UpdateBoardRequest>,
+    Body(body): Body<UpdateBoardRequest>,
 ) -> Result<Json<Board>, ApiError> {
     let changes = BoardChanges {
         name: body.name,
@@ -294,7 +295,7 @@ async fn create_column(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(board_id): Path<Uuid>,
-    Json(body): Json<CreateColumnRequest>,
+    Body(body): Body<CreateColumnRequest>,
 ) -> Result<(StatusCode, Json<Column>), ApiError> {
     let column =
         boards::create_column(&state.pool, actor(&user), board_id, &body.name, body.is_done, body.wip_limit)
@@ -325,7 +326,7 @@ async fn update_column(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(column_id): Path<Uuid>,
-    Json(body): Json<UpdateColumnRequest>,
+    Body(body): Body<UpdateColumnRequest>,
 ) -> Result<Json<Column>, ApiError> {
     let changes = ColumnChanges { name: body.name, is_done: body.is_done, wip_limit: body.wip_limit };
     Ok(Json(boards::update_column(&state.pool, actor(&user), column_id, changes).await?.into()))
@@ -364,7 +365,7 @@ async fn move_column(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(column_id): Path<Uuid>,
-    Json(body): Json<MoveColumnRequest>,
+    Body(body): Body<MoveColumnRequest>,
 ) -> Result<Json<Column>, ApiError> {
     Ok(Json(boards::move_column(&state.pool, actor(&user), column_id, body.index).await?.into()))
 }
@@ -387,7 +388,7 @@ async fn create_card(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(column_id): Path<Uuid>,
-    Json(body): Json<CreateCardRequest>,
+    Body(body): Body<CreateCardRequest>,
 ) -> Result<(StatusCode, Json<Card>), ApiError> {
     let card =
         boards::create_card(&state.pool, actor(&user), column_id, &body.title, &body.description).await?;
@@ -409,7 +410,7 @@ async fn update_card(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(card_id): Path<Uuid>,
-    Json(body): Json<UpdateCardRequest>,
+    Body(body): Body<UpdateCardRequest>,
 ) -> Result<Json<Card>, ApiError> {
     let changes = CardChanges { title: body.title, description: body.description };
     Ok(Json(boards::update_card(&state.pool, actor(&user), card_id, changes).await?.into()))
@@ -446,7 +447,7 @@ async fn move_card(
     State(state): State<AppState>,
     user: CurrentUser,
     Path(card_id): Path<Uuid>,
-    Json(body): Json<MoveCardRequest>,
+    Body(body): Body<MoveCardRequest>,
 ) -> Result<Json<Card>, ApiError> {
     Ok(Json(boards::move_card(&state.pool, actor(&user), card_id, body.column_id, body.index).await?.into()))
 }

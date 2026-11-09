@@ -2,6 +2,14 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.2 (2026-11-09)
+
+### Bug fixes
+
+#### server
+
+- malformed requests get the json error format with a stable code
+
 ## 0.1.0 (2026-11-09)
 
 ### Features

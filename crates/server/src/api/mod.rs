@@ -3,6 +3,7 @@
 
 pub mod boards;
 pub mod error;
+pub mod extract;
 pub mod limit;
 pub mod session;
 #[cfg(test)]
@@ -21,6 +22,7 @@ use utoipa_axum::routes;
 use uuid::Uuid;
 
 use self::error::{ApiError, ErrorBody};
+use self::extract::Body;
 use self::session::{COOKIE_NAME, Client, CurrentUser};
 use crate::http::AppState;
 
@@ -124,7 +126,7 @@ async fn setup(
     State(state): State<AppState>,
     Client(client): Client,
     jar: CookieJar,
-    Json(body): Json<SetupRequest>,
+    Body(body): Body<SetupRequest>,
 ) -> Result<(StatusCode, CookieJar, Json<Me>), ApiError> {
     let account =
         NewAccount { email: body.email, username: body.username, name: body.name, password: body.password };
@@ -154,7 +156,7 @@ async fn login(
     State(state): State<AppState>,
     Client(client): Client,
     jar: CookieJar,
-    Json(body): Json<LoginRequest>,
+    Body(body): Body<LoginRequest>,
 ) -> Result<(CookieJar, Json<Me>), ApiError> {
     let mut keys = vec![format!("login:{}", body.login.trim().to_lowercase())];
     // Limit by IP only when we know the real client address. Behind a reverse proxy without
