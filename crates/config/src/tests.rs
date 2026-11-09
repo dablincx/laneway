@@ -105,16 +105,82 @@ fn file_variant_only_for_secrets() {
 
 #[test]
 fn env_beats_database_beats_default() {
-    let port = setting("LANEWAY_HTTP_PORT").unwrap();
-    let db = Source::from_env(required()).with_database([("LANEWAY_HTTP_PORT", "4000")]);
-    assert_eq!(Config::from_source(&db).unwrap().http_port, 4000);
-    assert!(!db.is_locked(port));
+    let workers = setting("LANEWAY_WORKER_CONCURRENCY_COUNT").unwrap();
+    assert_eq!(load(required()).unwrap().worker_concurrency, 4);
+
+    let db = Source::from_env(required()).with_database([("LANEWAY_WORKER_CONCURRENCY_COUNT", "8")]);
+    assert_eq!(Config::from_source(&db).unwrap().worker_concurrency, 8);
+    assert_eq!(db.lookup(workers).unwrap(), Some(("8".to_owned(), Origin::Database)));
+    assert!(!db.is_locked(workers));
 
     let mut vars = required();
-    vars.push(("LANEWAY_HTTP_PORT", "5000".into()));
-    let both = Source::from_env(vars).with_database([("LANEWAY_HTTP_PORT", "4000")]);
-    assert_eq!(Config::from_source(&both).unwrap().http_port, 5000);
-    assert!(both.is_locked(port));
+    vars.push(("LANEWAY_WORKER_CONCURRENCY_COUNT", "16".into()));
+    let both = Source::from_env(vars).with_database([("LANEWAY_WORKER_CONCURRENCY_COUNT", "8")]);
+    assert_eq!(Config::from_source(&both).unwrap().worker_concurrency, 16);
+    assert!(both.is_locked(workers));
+    assert_eq!(both.database_value(workers), Some("8"));
+}
+
+#[test]
+fn env_only_settings_ignore_the_database() {
+    let port = setting("LANEWAY_HTTP_PORT").unwrap();
+    assert!(port.env_only);
+    let source = Source::from_env(required()).with_database([
+        ("LANEWAY_HTTP_PORT", "4000"),
+        ("LANEWAY_LOG_LEVEL", "error"),
+        ("LANEWAY_SECRET_KEY", "d".repeat(40).as_str()),
+    ]);
+    let config = Config::from_source(&source).unwrap();
+    assert_eq!(config.http_port, 3000);
+    assert_eq!(config.log_level, LogLevel::Info);
+    assert_eq!(config.secret_key.expose(), "k".repeat(32));
+    assert_eq!(source.lookup(port).unwrap(), Some(("3000".to_owned(), Origin::Default)));
+    assert_eq!(source.database_value(port), None);
+
+    // A required env-only setting can't be filled in from the database.
+    let mut vars = required();
+    vars.retain(|(k, _)| *k != "LANEWAY_DATABASE_URL");
+    let source =
+        Source::from_env(vars).with_database([("LANEWAY_DATABASE_URL", "postgres://u:p@db/laneway")]);
+    let err = Config::from_source(&source).unwrap_err();
+    assert_eq!(err.0[0].env, "LANEWAY_DATABASE_URL");
+}
+
+#[test]
+fn bootstrap_settings_are_env_only() {
+    let env_only: Vec<_> = SETTINGS.iter().filter(|s| s.env_only).map(|s| s.env).collect();
+    assert_eq!(
+        env_only,
+        [
+            "LANEWAY_SECRET_KEY",
+            "LANEWAY_PROCESS_ROLE",
+            "LANEWAY_DATABASE_URL",
+            "LANEWAY_DATABASE_MAX_CONNECTIONS_COUNT",
+            "LANEWAY_HTTP_PORT",
+            "LANEWAY_DATA_DIRECTORY",
+            "LANEWAY_LOG_LEVEL",
+            "LANEWAY_LOG_RETENTION_DAYS",
+        ]
+    );
+}
+
+#[test]
+fn validate_uses_the_setting_type() {
+    let port = setting("LANEWAY_HTTP_PORT").unwrap();
+    assert!(port.validate("8080").is_ok());
+    assert!(port.validate("70000").is_err());
+    assert!(port.validate("http").is_err());
+    let locale = setting("LANEWAY_DEFAULT_LOCALE").unwrap();
+    assert!(locale.validate("de").is_ok());
+    assert_eq!(
+        locale.validate("German").unwrap_err(),
+        "expected locale code (e.g. `en`, `de`, `pt-BR`), got \"German\""
+    );
+    let url = setting("LANEWAY_PUBLIC_URL").unwrap();
+    assert!(url.validate("ftp://x").is_err());
+    let flag = setting("LANEWAY_TRUST_PROXY_HEADERS").unwrap();
+    assert!(flag.validate("yes").is_ok());
+    assert!(flag.validate("maybe").is_err());
 }
 
 #[test]
@@ -138,4 +204,6 @@ fn docs_mention_every_var() {
     }
     assert!(env.contains("\nLANEWAY_PUBLIC_URL=https://laneway.example.com\n"));
     assert!(env.contains("\n#LANEWAY_HTTP_PORT=3000\n"));
+    assert!(env.contains("# type: integer (1-65535), env var only\n"));
+    assert!(md.contains("Env var only."));
 }

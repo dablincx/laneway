@@ -2,7 +2,7 @@
 
 # Environment variables
 
-Every laneway setting can be set with an env var. Env vars win over settings saved in the UI (the field then shows as locked). Secrets also accept a `_FILE` variant that reads the value from a file, e.g. for Docker secrets. Empty values count as unset.
+Every laneway setting can be set with an env var. Env vars win over settings saved in the database from the UI or with `laneway settings set` (the field then shows as locked). Settings marked *env var only* are needed before the database is reachable or only apply at startup, so they are never read from the database. Secrets also accept a `_FILE` variant that reads the value from a file, e.g. for Docker secrets. Empty values count as unset. See [settings](settings.md) for the database settings.
 
 Invalid values stop laneway at startup with a message naming the variable.
 
@@ -11,29 +11,29 @@ Invalid values stop laneway at startup with a message naming the variable.
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `LANEWAY_PUBLIC_URL` | URL | **required** | Public base URL of the instance, used for links, emails and OAuth. Example: `https://laneway.example.com` |
-| `LANEWAY_SECRET_KEY` | string, at least 32 characters | **required** | Master key for sessions and for encrypting secrets at rest. Generate one with `openssl rand -hex 32`. Changing it logs everyone out and makes stored secrets unreadable. Secret, also accepts `LANEWAY_SECRET_KEY_FILE`. Example: `replace-with-output-of-openssl-rand-hex-32` |
-| `LANEWAY_PROCESS_ROLE` | one of `app`, `worker`, `all` | `all` | Which part of laneway this container runs: the web app + API, the background worker, or both in one process (fine for small installs). Example: `all` |
+| `LANEWAY_SECRET_KEY` | string, at least 32 characters | **required** | Master key for sessions and for encrypting secrets at rest. Generate one with `openssl rand -hex 32`. Changing it logs everyone out and makes stored secrets unreadable. Env var only. Secret, also accepts `LANEWAY_SECRET_KEY_FILE`. Example: `replace-with-output-of-openssl-rand-hex-32` |
+| `LANEWAY_PROCESS_ROLE` | one of `app`, `worker`, `all` | `all` | Which part of laneway this container runs: the web app + API, the background worker, or both in one process (fine for small installs). Env var only. Example: `all` |
 | `LANEWAY_DEFAULT_LOCALE` | locale code (e.g. `en`, `de`, `pt-BR`) | `en` | Language for new users and logged-out pages. Example: `en` |
 
 ## Database
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `LANEWAY_DATABASE_URL` | Postgres URL | **required** | Postgres 18 connection URL. Older Postgres versions are refused at startup. Secret, also accepts `LANEWAY_DATABASE_URL_FILE`. Example: `postgres://laneway:password@postgres:5432/laneway` |
-| `LANEWAY_DATABASE_MAX_CONNECTIONS_COUNT` | integer (1-1000) | `10` | Max open database connections per laneway process. Example: `10` |
+| `LANEWAY_DATABASE_URL` | Postgres URL | **required** | Postgres 18 connection URL. Older Postgres versions are refused at startup. Env var only. Secret, also accepts `LANEWAY_DATABASE_URL_FILE`. Example: `postgres://laneway:password@postgres:5432/laneway` |
+| `LANEWAY_DATABASE_MAX_CONNECTIONS_COUNT` | integer (1-1000) | `10` | Max open database connections per laneway process. Env var only. Example: `10` |
 
 ## HTTP
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `LANEWAY_HTTP_PORT` | integer (1-65535) | `3000` | Port the app listens on inside the container. Example: `3000` |
+| `LANEWAY_HTTP_PORT` | integer (1-65535) | `3000` | Port the app listens on inside the container. Env var only. Example: `3000` |
 | `LANEWAY_TRUST_PROXY_HEADERS` | boolean (`true` or `false`) | `false` | Trust `X-Forwarded-For` / `X-Forwarded-Proto` headers. Only turn this on behind a reverse proxy that sets them, otherwise clients can fake their IP. Example: `false` |
 
 ## Storage
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `LANEWAY_DATA_DIRECTORY` | path | `/data` | Where board git repos and attachments are stored. Mount a volume here. Example: `/data` |
+| `LANEWAY_DATA_DIRECTORY` | path | `/data` | Where board git repos and attachments are stored. Mount a volume here. Env var only. Example: `/data` |
 
 ## Worker
 
@@ -45,6 +45,6 @@ Invalid values stop laneway at startup with a message naming the variable.
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `LANEWAY_LOG_LEVEL` | one of `debug`, `info`, `warn`, `error` | `info` | Log verbosity. Example: `info` |
-| `LANEWAY_LOG_RETENTION_DAYS` | integer (1-3650) | `14` | How many days of log files to keep in `<data directory>/logs`. Logs rotate daily, older files are deleted. Example: `14` |
+| `LANEWAY_LOG_LEVEL` | one of `debug`, `info`, `warn`, `error` | `info` | Log verbosity. Env var only. Example: `info` |
+| `LANEWAY_LOG_RETENTION_DAYS` | integer (1-3650) | `14` | How many days of log files to keep in `<data directory>/logs`. Logs rotate daily, older files are deleted. Env var only. Example: `14` |
 

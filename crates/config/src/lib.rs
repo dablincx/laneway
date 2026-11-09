@@ -4,7 +4,8 @@
 //! declaration produces the typed [`Config`] struct, env var parsing (incl. `_FILE`
 //! variants for secrets), the env var reference in `docs/` and `examples/.env.example`.
 //!
-//! Precedence: env var > DB setting > default.
+//! Precedence: env var > DB setting > default. Env-only settings (bootstrap values needed
+//! before the DB is reachable, or that only apply at startup) ignore DB values.
 
 mod docs;
 mod source;
@@ -58,16 +59,32 @@ pub struct Setting {
     pub secret: bool,
     /// Must be set (no default and not optional).
     pub required: bool,
+    /// Only read from the env. Values stored in the DB are ignored and the settings UI
+    /// doesn't offer it. For bootstrap settings needed before the DB is reachable, and for
+    /// ones that only apply at startup.
+    pub env_only: bool,
     /// Example value for the docs and `.env.example`.
     pub example: &'static str,
     /// Doc comment lines.
     pub description: &'static [&'static str],
+    /// Parses a raw value with the setting's own Rust type, discarding the result.
+    pub validator: fn(&str, Kind) -> Result<(), String>,
 }
 
 impl Setting {
     pub fn description(&self) -> String {
         self.description.iter().map(|l| l.trim()).collect::<Vec<_>>().join(" ")
     }
+
+    /// Checks a raw value the same way startup does. Returns the error message on failure.
+    pub fn validate(&self, raw: &str) -> Result<(), String> {
+        (self.validator)(raw, self.kind)
+    }
+}
+
+/// [`Setting::validator`] for a setting of Rust type `T`.
+pub fn validate_as<T: SettingValue>(raw: &str, kind: Kind) -> Result<(), String> {
+    T::parse(raw, kind).map(drop)
 }
 
 /// Looks up a setting by env var name.
@@ -128,6 +145,7 @@ macro_rules! settings {
             kind: $kind:expr,
             default: $default:expr,
             secret: $secret:literal,
+            env_only: $env_only:literal,
             example: $example:literal $(,)?
         }
     )*) => {
@@ -146,8 +164,10 @@ macro_rules! settings {
                 default: $default,
                 secret: $secret,
                 required: !<$ty as SettingValue>::OPTIONAL && Option::<&str>::is_none(&$default),
+                env_only: $env_only,
                 example: $example,
                 description: &[$($doc),+],
+                validator: validate_as::<$ty>,
             },
         )*];
 
@@ -227,6 +247,7 @@ settings! {
         kind: Kind::Url,
         default: None,
         secret: false,
+        env_only: false,
         example: "https://laneway.example.com",
     }
 
@@ -238,6 +259,7 @@ settings! {
         kind: Kind::Secret { min_length: 32 },
         default: None,
         secret: true,
+        env_only: true,
         example: "replace-with-output-of-openssl-rand-hex-32",
     }
 
@@ -249,6 +271,7 @@ settings! {
         kind: Kind::Enum(ProcessRole::VALUES),
         default: Some("all"),
         secret: false,
+        env_only: true,
         example: "all",
     }
 
@@ -259,6 +282,7 @@ settings! {
         kind: Kind::Locale,
         default: Some("en"),
         secret: false,
+        env_only: false,
         example: "en",
     }
 
@@ -269,6 +293,7 @@ settings! {
         kind: Kind::PostgresUrl,
         default: None,
         secret: true,
+        env_only: true,
         example: "postgres://laneway:password@postgres:5432/laneway",
     }
 
@@ -280,6 +305,7 @@ settings! {
         kind: Kind::Integer { min: 1, max: 1000 },
         default: Some("10"),
         secret: false,
+        env_only: true,
         example: "10",
     }
 
@@ -290,6 +316,7 @@ settings! {
         kind: Kind::Integer { min: 1, max: 65535 },
         default: Some("3000"),
         secret: false,
+        env_only: true,
         example: "3000",
     }
 
@@ -301,6 +328,7 @@ settings! {
         kind: Kind::Boolean,
         default: Some("false"),
         secret: false,
+        env_only: false,
         example: "false",
     }
 
@@ -311,6 +339,7 @@ settings! {
         kind: Kind::Path,
         default: Some("/data"),
         secret: false,
+        env_only: true,
         example: "/data",
     }
 
@@ -322,6 +351,7 @@ settings! {
         kind: Kind::Integer { min: 1, max: 256 },
         default: Some("4"),
         secret: false,
+        env_only: false,
         example: "4",
     }
 
@@ -332,6 +362,7 @@ settings! {
         kind: Kind::Enum(LogLevel::VALUES),
         default: Some("info"),
         secret: false,
+        env_only: true,
         example: "info",
     }
 
@@ -343,6 +374,7 @@ settings! {
         kind: Kind::Integer { min: 1, max: 3650 },
         default: Some("14"),
         secret: false,
+        env_only: true,
         example: "14",
     }
 

@@ -13,8 +13,11 @@ pub fn render_markdown() -> String {
     out.push_str("# Environment variables\n\n");
     out.push_str(
         "Every laneway setting can be set with an env var. Env vars win over settings saved in the \
-         UI (the field then shows as locked). Secrets also accept a `_FILE` variant that reads the \
-         value from a file, e.g. for Docker secrets. Empty values count as unset.\n\n",
+         database from the UI or with `laneway settings set` (the field then shows as locked). \
+         Settings marked *env var only* are needed before the database is reachable or only apply \
+         at startup, so they are never read from the database. Secrets also accept a `_FILE` \
+         variant that reads the value from a file, e.g. for Docker secrets. Empty values count as \
+         unset. See [settings](settings.md) for the database settings.\n\n",
     );
     out.push_str("Invalid values stop laneway at startup with a message naming the variable.\n\n");
 
@@ -32,6 +35,9 @@ pub fn render_markdown() -> String {
                 None => "*(unset)*".to_owned(),
             };
             let mut description = escape(&s.description());
+            if s.env_only {
+                description.push_str(" Env var only.");
+            }
             if s.secret {
                 let _ = write!(description, " Secret, also accepts `{}_FILE`.", s.env);
             }
@@ -68,6 +74,9 @@ pub fn render_env_example() -> String {
             let mut meta = format!("# type: {}", s.kind.describe().replace('`', ""));
             if s.secret {
                 let _ = write!(meta, ", secret (or {}_FILE)", s.env);
+            }
+            if s.env_only {
+                meta.push_str(", env var only");
             }
             let _ = writeln!(out, "{meta}");
             if s.required {
