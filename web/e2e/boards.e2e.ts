@@ -85,3 +85,17 @@ test.describe("german not-found page", () => {
     await expect(page.getByRole("heading", { name: de("common-not-found") })).toBeVisible();
   });
 });
+
+test("an expired session sends you to the login page", async ({ page }) => {
+  await logIn(page);
+  await page.getByLabel(en("board-new-name")).fill("e2e expiry");
+  await page.getByRole("button", { name: en("board-new-submit") }).click();
+  const todo = page.getByRole("region", { name: en("board-default-column-todo") });
+  await expect(todo).toBeVisible();
+
+  // The session ends while the page stays open (expired or logged out elsewhere).
+  await page.context().clearCookies();
+  await todo.getByLabel(en("card-new-title")).fill("after expiry");
+  await todo.getByLabel(en("card-new-title")).press("Enter");
+  await expect(page).toHaveURL(/\/login$/);
+});
