@@ -10,7 +10,7 @@
 #   ./dev.sh test            all tests (Rust + web)
 #   ./dev.sh lint            all formatting + lint checks CI runs
 #   ./dev.sh fix             auto-format Rust + web
-#   ./dev.sh gen             regenerate generated files (env var docs, .env.example, .sqlx)
+#   ./dev.sh gen             regenerate generated files (env docs, .env.example, .sqlx, API client)
 #   ./dev.sh migrate         apply DB migrations to the dev database
 #   ./dev.sh bump <major|minor|patch>   version bump commit (main only)
 #   ./dev.sh <any command>   e.g. ./dev.sh cargo add serde
@@ -84,7 +84,7 @@ case "$cmd" in
   test) run bash scripts/test.sh "$@" ;;
   lint) run bash scripts/lint.sh ;;
   fix) run bash -c 'cargo fmt --all && cd web && pnpm format' ;;
-  gen) run bash -c 'cargo run -q -p laneway-server -- config docs && cargo sqlx prepare --workspace -- --all-targets' ;;
+  gen) run bash scripts/gen.sh ;;
   migrate) run bash -c 'cd crates/db && cargo sqlx migrate run' ;;
   bump) run bash scripts/bump.sh "$@" ;;
   *) run "$cmd" "$@" ;;

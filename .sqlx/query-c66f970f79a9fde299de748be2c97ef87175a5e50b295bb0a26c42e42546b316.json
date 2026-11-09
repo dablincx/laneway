@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH gone AS (DELETE FROM setup_tokens) INSERT INTO setup_tokens (token_hash) VALUES ($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c66f970f79a9fde299de748be2c97ef87175a5e50b295bb0a26c42e42546b316"
+}

@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH s AS (\n             SELECT id, user_id, last_seen_at FROM sessions WHERE token_hash = $1 AND expires_at > now()\n         ), bump AS (\n             UPDATE sessions SET last_seen_at = now()\n             WHERE id IN (SELECT id FROM s WHERE last_seen_at < now() - interval '1 minute')\n         )\n         SELECT s.id AS session_id, u.id, u.email, u.username, u.name, u.locale, u.timezone,\n                u.instance_role, u.disabled, u.created_at\n         FROM s JOIN users u ON u.id = s.user_id\n         WHERE NOT u.disabled",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "locale",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "timezone",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "instance_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e4e906c76df2f52d8e29ca5c0938909634bcdc9f88bcdbf76a0f5338c8866d68"
+}

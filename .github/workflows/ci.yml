@@ -56,6 +56,8 @@ jobs:
         run: cargo run -q -p laneway-server -- config docs --check
       - name: sqlx offline query data up to date
         run: cargo sqlx prepare --workspace --check -- --all-targets
+      - name: OpenAPI spec up to date
+        run: cargo run -q -p laneway-server -- openapi | diff - web/openapi.json
       - name: translations (laneway i18n check)
         if: matrix.arch == 'amd64'
         run: cargo run -q -p laneway-server -- i18n check
@@ -78,6 +80,8 @@ jobs:
           node-version: 22
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
+      - name: API client matches the spec
+        run: pnpm gen:api && git diff --exit-code src/api/schema.ts
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
