@@ -247,7 +247,7 @@ settings! {
         kind: Kind::Url,
         default: None,
         secret: false,
-        env_only: false,
+        env_only: true,
         example: "https://laneway.example.com",
     }
 
