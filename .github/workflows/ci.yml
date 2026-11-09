@@ -65,6 +65,41 @@ jobs:
         if: matrix.arch == 'amd64'
         run: cargo run -q -p laneway-server -- i18n check
 
+  coverage:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: laneway
+          POSTGRES_PASSWORD: laneway
+          POSTGRES_DB: laneway
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U laneway" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      # Test-only database in the service container above.
+      DATABASE_URL: postgres://laneway:laneway@localhost:5432/laneway
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest,sqlx-cli
+      - name: apply migrations to the CI database
+        run: cargo sqlx migrate run --source crates/db/migrations
+      # Fails below the gate in scripts/coverage.sh.
+      - run: bash scripts/coverage.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage-lcov
+          path: target/lcov.info
+          if-no-files-found: ignore
+
   deny:
     runs-on: ubuntu-latest
     steps:

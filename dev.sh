@@ -9,6 +9,7 @@
 #   ./dev.sh web             run the Vite dev server for the web UI
 #   ./dev.sh test            all tests (Rust + web)
 #   ./dev.sh e2e             Playwright e2e tests against a fresh server + database (ports 3100-3101)
+#   ./dev.sh coverage        Rust test coverage report + gate (cargo-llvm-cov)
 #   ./dev.sh lint            all formatting + lint checks CI runs
 #   ./dev.sh fix             auto-format Rust + web
 #   ./dev.sh gen             regenerate generated files (env docs, .env.example, .sqlx, API client)
@@ -84,6 +85,7 @@ case "$cmd" in
   web) run bash -c 'cd web && pnpm dev' ;;
   test) run bash scripts/test.sh "$@" ;;
   e2e) run bash scripts/e2e.sh "$@" ;;
+  coverage) run bash scripts/coverage.sh "$@" ;;
   lint) run bash scripts/lint.sh ;;
   fix) run bash -c 'cargo fmt --all && cd web && pnpm format' ;;
   gen) run bash scripts/gen.sh ;;
