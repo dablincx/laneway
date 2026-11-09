@@ -5,6 +5,7 @@ x-dev-env: &dev-env
   LANEWAY_PUBLIC_URL: http://localhost:5173
   LANEWAY_SECRET_KEY: dev-secret-key-not-for-production-use-0000
   LANEWAY_DATABASE_URL: postgres://laneway:laneway@postgres:5432/laneway
+  DATABASE_URL: postgres://laneway:laneway@postgres:5432/laneway
   LANEWAY_DATA_DIRECTORY: /cache/data
   LANEWAY_LOG_LEVEL: debug
   LANEWAY_DEV_SERVER_URL: http://localhost:3000

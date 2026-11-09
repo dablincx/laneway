@@ -10,3 +10,6 @@ node_modules/
 /docs/PLAN.md
 .env
 *.local
+
+# Claude Code worktrees
+/.claude/worktrees

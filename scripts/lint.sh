@@ -5,4 +5,5 @@ cd "$(dirname "$0")/.."
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo run -q -p laneway-server -- config docs --check
+cargo sqlx prepare --workspace --check -- --all-targets
 (cd web && pnpm lint && pnpm typecheck)
