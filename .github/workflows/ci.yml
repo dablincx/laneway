@@ -65,11 +65,58 @@ jobs:
         if: matrix.arch == 'amd64'
         run: cargo run -q -p laneway-server -- i18n check
 
+  coverage:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: laneway
+          POSTGRES_PASSWORD: laneway
+          POSTGRES_DB: laneway
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U laneway" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      # Test-only database in the service container above.
+      DATABASE_URL: postgres://laneway:laneway@localhost:5432/laneway
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,cargo-nextest,sqlx-cli
+      - name: apply migrations to the CI database
+        run: cargo sqlx migrate run --source crates/db/migrations
+      # Fails below the gate in scripts/coverage.sh.
+      - run: bash scripts/coverage.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage-lcov
+          path: target/lcov.info
+          if-no-files-found: ignore
+
   deny:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Relative links and #fragments only: external sites are too flaky to fail CI on.
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline --include-fragments --no-progress --exclude-path 'docs/PLAN\.md'
+            README.md CONTRIBUTING.md SECURITY.md 'docs/**/*.md' 'examples/*' examples/.env.example
+          fail: true
 
   web:
     runs-on: ubuntu-latest
@@ -109,6 +156,27 @@ jobs:
         run: bash scripts/compose-test.sh examples/compose.yml laneway:ci
       - name: example compose, all in one
         run: bash scripts/compose-test.sh examples/compose.aio.yml laneway:ci
+      # Playwright e2e tests against the image just built, with a real postgres.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: e2e, install playwright + chromium
+        working-directory: web
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: e2e tests
+        run: bash scripts/e2e.sh --image laneway:ci
+      - name: e2e report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: ignore
 
   dev-container:
     runs-on: ubuntu-latest

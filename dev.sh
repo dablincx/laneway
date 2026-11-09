@@ -8,6 +8,8 @@
 #   ./dev.sh server          run the laneway server, rebuilding on change
 #   ./dev.sh web             run the Vite dev server for the web UI
 #   ./dev.sh test            all tests (Rust + web)
+#   ./dev.sh e2e             Playwright e2e tests against a fresh server + database (ports 3100-3101)
+#   ./dev.sh coverage        Rust test coverage report + gate (cargo-llvm-cov)
 #   ./dev.sh lint            all formatting + lint checks CI runs
 #   ./dev.sh fix             auto-format Rust + web
 #   ./dev.sh gen             regenerate generated files (env docs, .env.example, .sqlx, API client)
@@ -74,7 +76,7 @@ up() {
 cmd="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
-  help | -h | --help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help | -h | --help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0" ;;
   up) up ;;
   services) services ;;
   down) "${COMPOSE[@]}" down ;;
@@ -82,6 +84,8 @@ case "$cmd" in
   server) run cargo watch -x 'run -p laneway-server' ;;
   web) run bash -c 'cd web && pnpm dev' ;;
   test) run bash scripts/test.sh "$@" ;;
+  e2e) run bash scripts/e2e.sh "$@" ;;
+  coverage) run bash scripts/coverage.sh "$@" ;;
   lint) run bash scripts/lint.sh ;;
   fix) run bash -c 'cargo fmt --all && cd web && pnpm format' ;;
   gen) run bash scripts/gen.sh ;;

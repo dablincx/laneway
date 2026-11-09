@@ -10,9 +10,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
 
-RUN rustup component add rustfmt clippy \
+RUN rustup component add rustfmt clippy llvm-tools-preview \
     && curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash \
-    && cargo binstall -y --locked cargo-nextest cargo-watch cargo-deny sqlx-cli sccache git-cliff \
+    && cargo binstall -y --locked cargo-nextest cargo-watch cargo-deny sqlx-cli sccache git-cliff cargo-llvm-cov \
     && mv /usr/local/cargo/bin/* /usr/local/bin/ \
     && chmod -R a+rwX /usr/local/cargo /usr/local/rustup
 

@@ -1,7 +1,15 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "files": {
-    "includes": ["**", "!dist", "!node_modules", "!src/api/schema.ts", "!openapi.json"]
+    "includes": [
+      "**",
+      "!dist",
+      "!node_modules",
+      "!src/api/schema.ts",
+      "!openapi.json",
+      "!test-results",
+      "!playwright-report"
+    ]
   },
   "formatter": {
     "indentStyle": "space",
