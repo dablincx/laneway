@@ -1,20 +1,23 @@
-//! HTTP server: API, health checks and the static web UI.
+//! HTTP server: API, API docs, health checks and the static web UI.
 
 use std::net::SocketAddr;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use axum::Json;
-use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::get;
-use laneway_config::Config;
+use axum::{Json, Router, middleware};
+use laneway_config::{Config, Url};
 use laneway_db::PgPool;
-use serde::Serialize;
 use tokio::sync::watch;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
+use utoipa_scalar::{Scalar, Servable};
+
+use crate::api;
+use crate::api::error::ApiError;
+use crate::api::limit::LoginLimiter;
 
 /// Where the built web UI lives inside the Docker image.
 pub const WEB_DIRECTORY: &str = "/app/web";
@@ -23,6 +26,20 @@ pub const WEB_DIRECTORY: &str = "/app/web";
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub pool: PgPool,
+    pub public_url: Url,
+    pub trust_proxy_headers: bool,
+    pub login_limiter: LoginLimiter,
+}
+
+impl AppState {
+    pub fn new(config: &Config, pool: PgPool) -> Self {
+        Self {
+            pool,
+            public_url: config.public_url.clone(),
+            trust_proxy_headers: config.trust_proxy_headers,
+            login_limiter: LoginLimiter::default(),
+        }
+    }
 }
 
 pub async fn serve(config: Config, pool: PgPool, mut stop: watch::Receiver<bool>) -> Result<()> {
@@ -31,7 +48,8 @@ pub async fn serve(config: Config, pool: PgPool, mut stop: watch::Receiver<bool>
     let listener =
         tokio::net::TcpListener::bind(addr).await.with_context(|| format!("can't listen on {addr}"))?;
     tracing::info!("listening on http://{addr}");
-    axum::serve(listener, router(AppState { pool }, Path::new(WEB_DIRECTORY)))
+    let app = router(AppState::new(&config, pool), Path::new(WEB_DIRECTORY));
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
         .with_graceful_shutdown(async move {
             let _ = stop.wait_for(|stopped| *stopped).await;
         })
@@ -40,19 +58,30 @@ pub async fn serve(config: Config, pool: PgPool, mut stop: watch::Receiver<bool>
 }
 
 pub fn router(state: AppState, web_directory: &Path) -> Router {
-    // Unknown paths fall back to index.html so the web UI's router can handle them.
+    let (api_router, spec) = api::split();
+    let spec_for_docs = spec.clone();
+    let api_router = api_router
+        .route("/api/v1/openapi.json", get(move || async move { Json(spec.clone()) }))
+        .route(
+            "/api/{*rest}",
+            get(api_not_found).post(api_not_found).put(api_not_found).delete(api_not_found),
+        )
+        .layer(middleware::from_fn_with_state(state.clone(), api::session::csrf));
+
+    // Unknown non-API paths fall back to index.html so the web UI's router can handle them.
     let web = ServeDir::new(web_directory).fallback(ServeFile::new(web_directory.join("index.html")));
     Router::new()
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz))
-        .nest("/api/v1", api_v1())
+        .merge(api_router)
+        .merge(Scalar::with_url("/api/docs", spec_for_docs))
         .fallback_service(web)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
-fn api_v1() -> Router<AppState> {
-    Router::new().route("/instance", get(instance))
+async fn api_not_found() -> ApiError {
+    ApiError::new(StatusCode::NOT_FOUND, "not_found", "no such API endpoint")
 }
 
 async fn healthz() -> &'static str {
@@ -70,24 +99,25 @@ async fn readyz(State(state): State<AppState>) -> (StatusCode, &'static str) {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct Instance {
-    name: &'static str,
-    version: &'static str,
-}
-
-async fn instance() -> Json<Instance> {
-    Json(Instance { name: "laneway", version: env!("CARGO_PKG_VERSION") })
-}
-
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
     use super::*;
+
+    pub const PUBLIC_URL: &str = "http://laneway.test";
+
+    pub fn state(pool: PgPool) -> AppState {
+        AppState {
+            pool,
+            public_url: Url::parse(PUBLIC_URL).unwrap(),
+            trust_proxy_headers: false,
+            login_limiter: LoginLimiter::default(),
+        }
+    }
 
     async fn get(router: Router, uri: &str) -> (StatusCode, String) {
         let response = router.oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
@@ -102,14 +132,14 @@ mod tests {
             .acquire_timeout(std::time::Duration::from_millis(200))
             .connect_lazy("postgres://nobody@127.0.0.1:1/none")
             .unwrap();
-        AppState { pool }
+        state(pool)
     }
 
     fn app(dir: &tempfile::TempDir) -> Router {
         router(no_db(), dir.path())
     }
 
-    fn web_dir() -> tempfile::TempDir {
+    pub fn web_dir() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("index.html"), "<p>laneway</p>").unwrap();
         std::fs::write(dir.path().join("app.js"), "console.log(1)").unwrap();
@@ -131,18 +161,7 @@ mod tests {
     #[sqlx::test(migrations = false)]
     async fn ready_with_database(pool: PgPool) {
         let dir = web_dir();
-        let router = router(AppState { pool }, dir.path());
-        assert_eq!(get(router, "/readyz").await, (StatusCode::OK, "ok".into()));
-    }
-
-    #[tokio::test]
-    async fn instance_info() {
-        let dir = web_dir();
-        let (status, body) = get(app(&dir), "/api/v1/instance").await;
-        assert_eq!(status, StatusCode::OK);
-        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(json["name"], "laneway");
-        assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(get(router(state(pool), dir.path()), "/readyz").await, (StatusCode::OK, "ok".into()));
     }
 
     #[tokio::test]
@@ -150,5 +169,23 @@ mod tests {
         let dir = web_dir();
         assert_eq!(get(app(&dir), "/app.js").await.1, "console.log(1)");
         assert_eq!(get(app(&dir), "/boards/some-board").await.1, "<p>laneway</p>");
+    }
+
+    #[tokio::test]
+    async fn unknown_api_paths_are_json_404s_not_the_web_ui() {
+        let dir = web_dir();
+        let (status, body) = get(app(&dir), "/api/v1/nope").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(body.contains("\"not_found\""), "{body}");
+    }
+
+    #[tokio::test]
+    async fn openapi_spec_and_docs_page() {
+        let dir = web_dir();
+        let (status, body) = get(app(&dir), "/api/v1/openapi.json").await;
+        assert_eq!(status, StatusCode::OK);
+        let spec: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert!(spec["paths"]["/api/v1/auth/login"]["post"].is_object(), "{body}");
+        assert_eq!(get(app(&dir), "/api/docs").await.0, StatusCode::OK);
     }
 }
