@@ -15,21 +15,11 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [ ] Verify the release workflow end to end with the first `bump: v0.1.0`
 - [ ] Verify the dev container (`./dev.sh up` without native mode) on a normal machine; it can't build in cloud sessions
 - [x] i18n crate (`fluent-rs`) + `laneway i18n check` (missing/unused keys, syntax) in CI, lint rule against literal UI strings
-- [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
-- [ ] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`); today only text nodes are checked
 - [x] Postgres 18 + sqlx migrations (advisory lock on start), version check, UUIDv7 everywhere, `/readyz` checks DB
 - [x] Job queue crate (serial keys, replace keys for debouncing, delayed jobs, retries with backoff, leases, LISTEN/NOTIFY), worker role runs it
-- [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
-- [ ] Job queue: show jobs in the admin job monitor (v0.3)
 - [x] Config: DB settings layer wired to the `settings` table (encrypted secrets), env-only bootstrap settings, `laneway settings list/set/unset`
-- [ ] Config: let required non-bootstrap settings (`LANEWAY_PUBLIC_URL`) come from the DB only; today the first env-only load still needs them in the env
-- [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
-- [ ] Config: settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
 - [x] First-launch admin setup with a one-time setup token from the logs, password login (email or username), sessions (cookie, CSRF origin check, login rate limit)
 - [x] `LANEWAY_INITIAL_ADMIN_EMAIL` / `_PASSWORD` to skip the setup page
-- [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
-- [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
-- [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)
 - [x] OpenAPI spec (utoipa) at `/api/v1/openapi.json`, docs page at `/api/docs`, TS client generated from it (openapi-typescript + openapi-fetch), CI checks both are up to date
 - [x] Minimal boards -> columns -> cards via `/api/v1` (personal workspace, fractional positions, owner-only access until v0.3)
 - [x] Board web UI: board list, create board with translated default columns, board view with columns + cards, add/edit/move/delete (drag and drop is v0.2)
@@ -38,8 +28,24 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [x] CI: dev container build
 - [x] CI: Playwright e2e (`web/e2e`, `./dev.sh e2e`) against the Docker image with a real Postgres: setup, login, logout, German UI
 - [x] CI: markdown link check (lychee, relative links and fragments in README, CONTRIBUTING, SECURITY, docs, examples)
-- [ ] Link check: external links too, in a scheduled job that opens an issue instead of failing pushes
 - [x] CI: coverage report + gate (`cargo-llvm-cov`, `./dev.sh coverage`), gate at the current 83% of lines
+
+## Follow-ups (not tied to a version yet)
+
+Gaps and shortcuts found while building v0.1.0. Pick them up when they get in the way or with the
+feature they belong to.
+
+- [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
+- [ ] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`); today only text nodes are checked
+- [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
+- [ ] Job queue: show jobs in the admin job monitor (v0.3)
+- [ ] Config: let required non-bootstrap settings (`LANEWAY_PUBLIC_URL`) come from the DB only; today the first env-only load still needs them in the env
+- [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
+- [ ] Config: settings UI + API on `laneway-core::settings` (only non-env-only settings, locked fields, `updated_by` set to the admin), apply changes without a restart where possible
+- [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
+- [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
+- [ ] API error messages are English; localize them with `laneway-i18n` (the web UI already maps error codes to translated text)
+- [ ] Link check: external links too, in a scheduled job that opens an issue instead of failing pushes
 - [ ] Coverage: >=90% lines for core, auth, git-store and the permission resolver, each gated on its own (today core ~98%, auth ~95%, not gated per crate)
 - [ ] Coverage: >=80% lines overall as a floor that stays (today 83%; the server crate is ~60%, its CLI and worker paths have no tests)
 - [ ] Coverage: count the e2e runs too (instrumented server binary)
