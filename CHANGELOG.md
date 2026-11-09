@@ -2,6 +2,14 @@
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
 
+## 0.1.7 (2026-11-09)
+
+### Documentation
+
+#### general
+
+- readme describes what v0.1.0 can do and how to self-host it
+
 ## 0.1.6 (2026-11-09)
 
 ### Bug fixes
