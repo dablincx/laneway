@@ -109,6 +109,27 @@ jobs:
         run: bash scripts/compose-test.sh examples/compose.yml laneway:ci
       - name: example compose, all in one
         run: bash scripts/compose-test.sh examples/compose.aio.yml laneway:ci
+      # Playwright e2e tests against the image just built, with a real postgres.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: e2e, install playwright + chromium
+        working-directory: web
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: e2e tests
+        run: bash scripts/e2e.sh --image laneway:ci
+      - name: e2e report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: ignore
 
   dev-container:
     runs-on: ubuntu-latest

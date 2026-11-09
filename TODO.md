@@ -34,7 +34,11 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [ ] Minimal boards -> columns -> cards via `/api/v1`, OpenAPI spec (utoipa), web UI using the generated TS client
 - [ ] Action recording for every mutation
 - [x] Example compose files (`compose.yml` app + worker, `compose.aio.yml` all in one), tested in CI against the image built there
-- [ ] CI: coverage gates (`cargo-llvm-cov`), Playwright e2e, markdown link check, dev container build
+- [x] CI: dev container build
+- [x] CI: Playwright e2e (`web/e2e`, `./dev.sh e2e`) against the Docker image with a real Postgres: setup, login, logout, German UI
+- [ ] CI: coverage gates (`cargo-llvm-cov`), markdown link check
+- [ ] e2e: run the tests in Firefox and WebKit too, not only Chromium
+- [ ] e2e: `./dev.sh e2e` without native mode needs Playwright's Chromium in the dev container
 
 ## v0.2.0 Full kanban (`feat/kanban`)
 
