@@ -241,3 +241,40 @@ async fn invalid_board_input_and_unknown_ids(pool: PgPool) {
     let missing = api.get(&format!("/api/v1/boards/{}", laneway_db::new_id())).await;
     assert_eq!(missing.status, StatusCode::NOT_FOUND);
 }
+
+/// Bad requests get our error format with a stable code, not axum's plain-text rejections.
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn malformed_requests_use_the_error_format(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+
+    let not_a_uuid = api.get("/api/v1/boards/not-a-uuid").await;
+    assert_eq!(
+        (not_a_uuid.status, not_a_uuid.body["error"]["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("invalid_request"))
+    );
+
+    let missing_field = api.post("/api/v1/boards", json!({"description": "no name"})).await;
+    assert_eq!(
+        (missing_field.status, missing_field.body["error"]["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("invalid_request"))
+    );
+
+    // Broken JSON and a missing content type, sent by hand.
+    for (content_type, body, status, code) in [
+        (Some("application/json"), "{not json", StatusCode::BAD_REQUEST, "invalid_request"),
+        (None, "{}", StatusCode::UNSUPPORTED_MEDIA_TYPE, "unsupported_media_type"),
+    ] {
+        let mut req =
+            Request::builder().method("POST").uri("/api/v1/boards").header(header::ORIGIN, PUBLIC_URL);
+        req = req.header(header::COOKIE, api.cookie.clone().unwrap());
+        if let Some(ct) = content_type {
+            req = req.header(header::CONTENT_TYPE, ct);
+        }
+        let response = api.router.clone().oneshot(req.body(Body::from(body)).unwrap()).await.unwrap();
+        assert_eq!(response.status(), status);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let json: Value = serde_json::from_slice(&bytes).expect("error body is JSON");
+        assert_eq!(json["error"]["code"], code);
+    }
+}
