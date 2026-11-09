@@ -12,7 +12,8 @@ const browsers = {
   webkit: devices["Desktop Safari"],
 };
 const browser = (process.env.LANEWAY_E2E_BROWSER ?? "chromium") as keyof typeof browsers;
-if (!(browser in browsers)) throw new Error(`LANEWAY_E2E_BROWSER must be one of ${Object.keys(browsers).join(", ")}`);
+if (!(browser in browsers))
+  throw new Error(`LANEWAY_E2E_BROWSER must be one of ${Object.keys(browsers).join(", ")}`);
 
 export default defineConfig({
   testDir: "e2e",
