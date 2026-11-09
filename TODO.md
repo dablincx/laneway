@@ -37,7 +37,7 @@ feature they belong to.
 
 - [ ] Server: load `/app/locales` with `laneway-i18n` once server-side text exists (emails, notifications), negotiate from the user setting / `Accept-Language`
 - [x] i18n check: also flag literal UI text in JSX attributes (`placeholder`, `title`, `aria-label`, `alt`)
-- [ ] Job queue: test the concurrent-claim race (two workers, same serial key) under real parallel load
+- [x] Job queue: test the concurrent-claim race (many workers, same serial key)
 - [ ] Config: rotate `LANEWAY_SECRET_KEY` (re-encrypt stored secrets with the new key)
 - [ ] Periodic cleanup job for expired sessions (`laneway_db::sessions::delete_expired`) once the worker can schedule recurring jobs
 - [ ] Login rate limit is per process and in memory; move it to the DB if several app containers run
