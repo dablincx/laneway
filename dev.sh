@@ -10,7 +10,8 @@
 #   ./dev.sh test            all tests (Rust + web)
 #   ./dev.sh lint            all formatting + lint checks CI runs
 #   ./dev.sh fix             auto-format Rust + web
-#   ./dev.sh gen             regenerate generated files (env var docs, .env.example)
+#   ./dev.sh gen             regenerate generated files (env var docs, .env.example, .sqlx)
+#   ./dev.sh migrate         apply DB migrations to the dev database
 #   ./dev.sh bump <major|minor|patch>   version bump commit (main only)
 #   ./dev.sh <any command>   e.g. ./dev.sh cargo add serde
 #
@@ -40,6 +41,8 @@ if [[ "$NATIVE" == "1" ]]; then
   export LANEWAY_LOG_LEVEL="${LANEWAY_LOG_LEVEL:-debug}"
   export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-$LANEWAY_DEV_BUILD_JOBS}"
 fi
+# sqlx (compile-time checked queries, #[sqlx::test]) reads DATABASE_URL.
+export DATABASE_URL="${DATABASE_URL:-${LANEWAY_DATABASE_URL:-postgres://laneway:laneway@localhost:5432/laneway}}"
 
 services() {
   "${COMPOSE[@]}" up -d --wait "${SERVICES[@]}"
@@ -71,7 +74,7 @@ up() {
 cmd="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
-  help | -h | --help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help | -h | --help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//' ;;
   up) up ;;
   services) services ;;
   down) "${COMPOSE[@]}" down ;;
@@ -81,7 +84,8 @@ case "$cmd" in
   test) run bash scripts/test.sh "$@" ;;
   lint) run bash scripts/lint.sh ;;
   fix) run bash -c 'cargo fmt --all && cd web && pnpm format' ;;
-  gen) run cargo run -q -p laneway-server -- config docs ;;
+  gen) run bash -c 'cargo run -q -p laneway-server -- config docs && cargo sqlx prepare --workspace -- --all-targets' ;;
+  migrate) run bash -c 'cd crates/db && cargo sqlx migrate run' ;;
   bump) run bash scripts/bump.sh "$@" ;;
   *) run "$cmd" "$@" ;;
 esac

@@ -27,6 +27,19 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: laneway
+          POSTGRES_PASSWORD: laneway
+          POSTGRES_DB: laneway
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U laneway" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      # Test-only database in the service container above.
+      DATABASE_URL: postgres://laneway:laneway@localhost:5432/laneway
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -35,12 +48,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,sqlx-cli
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo nextest run --workspace --locked --no-tests=pass
       - name: env var docs + .env.example up to date
         run: cargo run -q -p laneway-server -- config docs --check
+      - name: sqlx offline query data up to date
+        run: cargo sqlx prepare --workspace --check -- --all-targets
 
   deny:
     runs-on: ubuntu-latest

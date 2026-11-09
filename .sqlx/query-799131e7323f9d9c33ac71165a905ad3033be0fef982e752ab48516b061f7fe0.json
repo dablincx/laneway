@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE jobs\n        SET status = 'running', attempts = attempts + 1, locked_by = $1,\n            lease_until = now() + make_interval(secs => $2)\n        WHERE id = (\n            SELECT j.id FROM jobs j\n            WHERE j.status = 'queued' AND j.run_at <= now() AND j.kind = ANY($3)\n              AND (j.serial_key IS NULL OR (\n                    NOT EXISTS (SELECT 1 FROM jobs r\n                                WHERE r.serial_key = j.serial_key AND r.status = 'running')\n                AND NOT EXISTS (SELECT 1 FROM jobs e\n                                WHERE e.serial_key = j.serial_key AND e.status = 'queued' AND e.id < j.id)))\n            ORDER BY j.run_at, j.id\n            FOR UPDATE SKIP LOCKED\n            LIMIT 1\n        )\n        RETURNING id, kind, payload, attempts AS attempt, max_attempts\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "payload",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "attempt",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_attempts",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "799131e7323f9d9c33ac71165a905ad3033be0fef982e752ab48516b061f7fe0"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs\n         SET status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,\n             finished_at = CASE WHEN attempts >= max_attempts THEN now() END,\n             last_error = 'worker stopped responding (lease expired)',\n             lease_until = NULL, locked_by = NULL\n         WHERE status = 'running' AND lease_until < now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "e6a922f4e36cc726d3ea9dc8e1dbed8493845da85490e465da733c79191411fc"
+}

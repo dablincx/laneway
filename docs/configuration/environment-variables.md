@@ -20,6 +20,7 @@ Invalid values stop laneway at startup with a message naming the variable.
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `LANEWAY_DATABASE_URL` | Postgres URL | **required** | Postgres 18 connection URL. Older Postgres versions are refused at startup. Secret, also accepts `LANEWAY_DATABASE_URL_FILE`. Example: `postgres://laneway:password@postgres:5432/laneway` |
+| `LANEWAY_DATABASE_MAX_CONNECTIONS_COUNT` | integer (1-1000) | `10` | Max open database connections per laneway process. Example: `10` |
 
 ## HTTP
 
@@ -33,6 +34,12 @@ Invalid values stop laneway at startup with a message naming the variable.
 | Variable | Type | Default | Description |
 |---|---|---|---|
 | `LANEWAY_DATA_DIRECTORY` | path | `/data` | Where board git repos and attachments are stored. Mount a volume here. Example: `/data` |
+
+## Worker
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `LANEWAY_WORKER_CONCURRENCY_COUNT` | integer (1-256) | `4` | How many background jobs one worker process runs at the same time. Example: `4` |
 
 ## Logging
 

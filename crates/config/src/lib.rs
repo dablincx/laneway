@@ -25,11 +25,13 @@ pub enum Area {
     Database,
     Http,
     Storage,
+    Worker,
     Logging,
 }
 
 impl Area {
-    pub const ALL: &[Area] = &[Area::General, Area::Database, Area::Http, Area::Storage, Area::Logging];
+    pub const ALL: &[Area] =
+        &[Area::General, Area::Database, Area::Http, Area::Storage, Area::Worker, Area::Logging];
 
     pub fn title(self) -> &'static str {
         match self {
@@ -37,6 +39,7 @@ impl Area {
             Area::Database => "Database",
             Area::Http => "HTTP",
             Area::Storage => "Storage",
+            Area::Worker => "Worker",
             Area::Logging => "Logging",
         }
     }
@@ -270,6 +273,16 @@ settings! {
     }
 
 
+    /// Max open database connections per laneway process.
+    database_max_connections: u32 {
+        env: "LANEWAY_DATABASE_MAX_CONNECTIONS_COUNT",
+        area: Database,
+        kind: Kind::Integer { min: 1, max: 1000 },
+        default: Some("10"),
+        secret: false,
+        example: "10",
+    }
+
     /// Port the app listens on inside the container.
     http_port: u16 {
         env: "LANEWAY_HTTP_PORT",
@@ -301,6 +314,16 @@ settings! {
         example: "/data",
     }
 
+
+    /// How many background jobs one worker process runs at the same time.
+    worker_concurrency: u32 {
+        env: "LANEWAY_WORKER_CONCURRENCY_COUNT",
+        area: Worker,
+        kind: Kind::Integer { min: 1, max: 256 },
+        default: Some("4"),
+        secret: false,
+        example: "4",
+    }
 
     /// Log verbosity.
     log_level: LogLevel {

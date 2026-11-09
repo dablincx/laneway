@@ -71,21 +71,40 @@ async fn serve() -> Result<ExitCode> {
     }
     tracing::info!(version = env!("CARGO_PKG_VERSION"), role = %config.process_role, "starting laneway");
 
-    let shutdown = shutdown_signal();
-    tokio::pin!(shutdown);
+    let pool = laneway_db::connect(config.database_url.as_str(), config.database_max_connections).await?;
+    laneway_db::migrate(&pool).await?;
+    tracing::info!("database ready");
+
     let (stop_tx, stop_rx) = tokio::sync::watch::channel(false);
-
-    let app =
-        config.process_role.runs_app().then(|| tokio::spawn(http::serve(config.clone(), stop_rx.clone())));
-    let worker = config.process_role.runs_worker().then(|| tokio::spawn(worker::run(stop_rx)));
-
-    shutdown.await;
-    tracing::info!("shutting down");
-    let _ = stop_tx.send(true);
-    for task in [app, worker].into_iter().flatten() {
-        task.await.context("task panicked")??;
+    let mut tasks = tokio::task::JoinSet::new();
+    if config.process_role.runs_app() {
+        tasks.spawn(http::serve(config.clone(), pool.clone(), stop_rx.clone()));
     }
-    Ok(ExitCode::SUCCESS)
+    if config.process_role.runs_worker() {
+        tasks.spawn(worker::run(config.clone(), pool.clone(), stop_rx));
+    }
+
+    // Stop on a signal, or as soon as one part dies (so Docker restarts the container).
+    let mut failed = false;
+    tokio::select! {
+        () = shutdown_signal() => tracing::info!("shutting down"),
+        Some(result) = tasks.join_next() => {
+            failed = true;
+            match result {
+                Ok(Ok(())) => tracing::error!("a laneway task stopped unexpectedly"),
+                Ok(Err(e)) => tracing::error!("{e:#}"),
+                Err(e) => tracing::error!("a laneway task panicked: {e}"),
+            }
+        }
+    }
+    let _ = stop_tx.send(true);
+    while let Some(result) = tasks.join_next().await {
+        if !matches!(result, Ok(Ok(()))) {
+            failed = true;
+        }
+    }
+    pool.close().await;
+    Ok(if failed { ExitCode::FAILURE } else { ExitCode::SUCCESS })
 }
 
 /// Plain HTTP/1.0 request, so the image doesn't need curl. Reads only the port, not the whole

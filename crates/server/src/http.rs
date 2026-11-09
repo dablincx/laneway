@@ -6,8 +6,11 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use axum::Json;
 use axum::Router;
+use axum::extract::State;
+use axum::http::StatusCode;
 use axum::routing::get;
 use laneway_config::Config;
+use laneway_db::PgPool;
 use serde::Serialize;
 use tokio::sync::watch;
 use tower_http::services::{ServeDir, ServeFile};
@@ -16,13 +19,19 @@ use tower_http::trace::TraceLayer;
 /// Where the built web UI lives inside the Docker image.
 pub const WEB_DIRECTORY: &str = "/app/web";
 
-pub async fn serve(config: Config, mut stop: watch::Receiver<bool>) -> Result<()> {
+/// Shared by all handlers.
+#[derive(Debug, Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+}
+
+pub async fn serve(config: Config, pool: PgPool, mut stop: watch::Receiver<bool>) -> Result<()> {
     // Always all interfaces: laneway runs in a container, the port mapping decides exposure.
     let addr = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     let listener =
         tokio::net::TcpListener::bind(addr).await.with_context(|| format!("can't listen on {addr}"))?;
     tracing::info!("listening on http://{addr}");
-    axum::serve(listener, router(Path::new(WEB_DIRECTORY)))
+    axum::serve(listener, router(AppState { pool }, Path::new(WEB_DIRECTORY)))
         .with_graceful_shutdown(async move {
             let _ = stop.wait_for(|stopped| *stopped).await;
         })
@@ -30,7 +39,7 @@ pub async fn serve(config: Config, mut stop: watch::Receiver<bool>) -> Result<()
     Ok(())
 }
 
-pub fn router(web_directory: &Path) -> Router {
+pub fn router(state: AppState, web_directory: &Path) -> Router {
     // Unknown paths fall back to index.html so the web UI's router can handle them.
     let web = ServeDir::new(web_directory).fallback(ServeFile::new(web_directory.join("index.html")));
     Router::new()
@@ -39,9 +48,10 @@ pub fn router(web_directory: &Path) -> Router {
         .nest("/api/v1", api_v1())
         .fallback_service(web)
         .layer(TraceLayer::new_for_http())
+        .with_state(state)
 }
 
-fn api_v1() -> Router {
+fn api_v1() -> Router<AppState> {
     Router::new().route("/instance", get(instance))
 }
 
@@ -49,9 +59,15 @@ async fn healthz() -> &'static str {
     "ok"
 }
 
-/// Ready = can serve traffic. Will check the DB + queue once they exist.
-async fn readyz() -> &'static str {
-    "ok"
+/// Ready = can serve traffic, i.e. the database answers.
+async fn readyz(State(state): State<AppState>) -> (StatusCode, &'static str) {
+    match laneway_db::ping(&state.pool).await {
+        Ok(()) => (StatusCode::OK, "ok"),
+        Err(e) => {
+            tracing::warn!("not ready: {e}");
+            (StatusCode::SERVICE_UNAVAILABLE, "database unavailable")
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -80,6 +96,19 @@ mod tests {
         (status, String::from_utf8(body.to_vec()).unwrap())
     }
 
+    /// A pool that never connects, for routes that don't touch the database.
+    fn no_db() -> AppState {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .acquire_timeout(std::time::Duration::from_millis(200))
+            .connect_lazy("postgres://nobody@127.0.0.1:1/none")
+            .unwrap();
+        AppState { pool }
+    }
+
+    fn app(dir: &tempfile::TempDir) -> Router {
+        router(no_db(), dir.path())
+    }
+
     fn web_dir() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("index.html"), "<p>laneway</p>").unwrap();
@@ -88,16 +117,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health() {
+    async fn health_needs_no_database() {
         let dir = web_dir();
-        assert_eq!(get(router(dir.path()), "/healthz").await, (StatusCode::OK, "ok".into()));
-        assert_eq!(get(router(dir.path()), "/readyz").await, (StatusCode::OK, "ok".into()));
+        assert_eq!(get(app(&dir), "/healthz").await, (StatusCode::OK, "ok".into()));
+    }
+
+    #[tokio::test]
+    async fn not_ready_without_database() {
+        let dir = web_dir();
+        assert_eq!(get(app(&dir), "/readyz").await.0, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[sqlx::test(migrations = false)]
+    async fn ready_with_database(pool: PgPool) {
+        let dir = web_dir();
+        let router = router(AppState { pool }, dir.path());
+        assert_eq!(get(router, "/readyz").await, (StatusCode::OK, "ok".into()));
     }
 
     #[tokio::test]
     async fn instance_info() {
         let dir = web_dir();
-        let (status, body) = get(router(dir.path()), "/api/v1/instance").await;
+        let (status, body) = get(app(&dir), "/api/v1/instance").await;
         assert_eq!(status, StatusCode::OK);
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(json["name"], "laneway");
@@ -107,7 +148,7 @@ mod tests {
     #[tokio::test]
     async fn web_ui_and_spa_fallback() {
         let dir = web_dir();
-        assert_eq!(get(router(dir.path()), "/app.js").await.1, "console.log(1)");
-        assert_eq!(get(router(dir.path()), "/boards/some-board").await.1, "<p>laneway</p>");
+        assert_eq!(get(app(&dir), "/app.js").await.1, "console.log(1)");
+        assert_eq!(get(app(&dir), "/boards/some-board").await.1, "<p>laneway</p>");
     }
 }
