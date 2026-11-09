@@ -114,7 +114,25 @@ jobs:
         run: |
           label="$(docker image inspect laneway:smoke --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
           [ "$label" = "$VERSION" ] || { echo "image version label is '$label', expected '$VERSION'" >&2; exit 1; }
+      # ghcr sometimes refuses writes right after a burst of pushes (403 write_package even
+      # though the token may write). The build is cached, so a second try is cheap.
       - id: push
+        continue-on-error: true
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          provenance: mode=max
+          sbom: true
+      - name: wait before retrying the push
+        if: steps.push.outcome == 'failure'
+        run: sleep 120
+      - id: push-retry
+        if: steps.push.outcome == 'failure'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -129,7 +147,7 @@ jobs:
           mkdir -p digests
           touch "digests/${DIGEST#sha256:}"
         env:
-          DIGEST: ${{ steps.push.outputs.digest }}
+          DIGEST: ${{ steps.push.outputs.digest || steps.push-retry.outputs.digest }}
       - uses: actions/upload-artifact@v7
         with:
           name: digest-${{ matrix.arch }}
@@ -166,10 +184,16 @@ jobs:
             type=sha,prefix=sha-,value=${{ needs.changelog.outputs.sha }}
       - name: multi-arch manifest
         working-directory: digests
+        # Same ghcr hiccup as above: retry with backoff. Creating the manifest again is harmless.
         run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+          for wait in 30 60 120 240 0; do
+            docker buildx imagetools create \
+              $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+              $(printf '${{ env.IMAGE }}@sha256:%s ' *) && break
+            [ "$wait" -eq 0 ] && exit 1
+            echo "push refused, retrying in ${wait}s" >&2
+            sleep "$wait"
+          done
           docker buildx imagetools inspect "${{ env.IMAGE }}:${{ needs.changelog.outputs.version }}" | tee ../manifest.txt
       - uses: actions/download-artifact@v8
         with:
