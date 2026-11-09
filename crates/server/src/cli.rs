@@ -30,6 +30,21 @@ enum Command {
         #[command(subcommand)]
         command: ConfigCommand,
     },
+    /// Translation tools.
+    I18n {
+        #[command(subcommand)]
+        command: I18nCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum I18nCommand {
+    /// Check `locales/` and the source for broken, stale, unused or hardcoded UI text (for CI).
+    Check {
+        /// Repo root.
+        #[arg(long, default_value = ".")]
+        root: PathBuf,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -53,6 +68,7 @@ pub async fn run(cli: Cli) -> Result<ExitCode> {
         Command::Health => health(),
         Command::Config { command: ConfigCommand::Check } => check(),
         Command::Config { command: ConfigCommand::Docs { check, root } } => docs(&root, check),
+        Command::I18n { command: I18nCommand::Check { root } } => Ok(i18n_check(&root)),
     }
 }
 
@@ -149,6 +165,17 @@ fn docs(root: &Path, check: bool) -> Result<ExitCode> {
     Ok(if outdated { ExitCode::FAILURE } else { ExitCode::SUCCESS })
 }
 
+fn i18n_check(root: &Path) -> ExitCode {
+    let report = laneway_i18n::check(root);
+    for finding in &report.findings {
+        eprintln!("{finding}");
+    }
+    let errors = report.errors().count();
+    let warnings = report.warnings().count();
+    println!("i18n check: {errors} errors, {warnings} warnings");
+    if report.has_errors() { ExitCode::FAILURE } else { ExitCode::SUCCESS }
+}
+
 async fn shutdown_signal() {
     let ctrl_c = async {
         let _ = tokio::signal::ctrl_c().await;
@@ -167,5 +194,32 @@ async fn shutdown_signal() {
     tokio::select! {
         () = ctrl_c => {},
         () = terminate => {},
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_i18n_check() {
+        let cli = Cli::try_parse_from(["laneway", "i18n", "check", "--root", "some/dir"]).unwrap();
+        let Some(Command::I18n { command: I18nCommand::Check { root } }) = cli.command else {
+            panic!("{cli:?}")
+        };
+        assert_eq!(root, Path::new("some/dir"));
+    }
+
+    #[test]
+    fn i18n_check_passes_on_the_repo() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        assert_eq!(i18n_check(&root), ExitCode::SUCCESS);
+    }
+
+    #[test]
+    fn i18n_check_fails_on_errors() {
+        let root = tempfile::tempdir().unwrap();
+        // No locales/ at all.
+        assert_eq!(i18n_check(root.path()), ExitCode::FAILURE);
     }
 }

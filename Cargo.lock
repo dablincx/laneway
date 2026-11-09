@@ -630,6 +630,7 @@ dependencies = [
  "clap",
  "http-body-util",
  "laneway-config",
+ "laneway-i18n",
  "serde",
  "serde_json",
  "tempfile",
