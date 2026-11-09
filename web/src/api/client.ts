@@ -4,6 +4,7 @@ import createClient from "openapi-fetch";
 
 import type { components, paths } from "./schema";
 
+export type { components };
 export type Me = components["schemas"]["Me"];
 export type Instance = components["schemas"]["Instance"];
 
@@ -21,13 +22,11 @@ export class ApiError extends Error {
 
 type Result<T> = { data?: T; error?: unknown; response: Response };
 
-/** Returns the data or throws an ApiError. */
+/** Returns the data (undefined for 204 No Content) or throws an ApiError. */
 export function unwrap<T>({ data, error, response }: Result<T>): T {
-  if (error !== undefined || data === undefined) {
-    const code = (error as { error?: { code?: string } } | undefined)?.error?.code ?? "unknown";
-    throw new ApiError(response.status, code);
-  }
-  return data;
+  if (response.ok && error === undefined) return data as T;
+  const code = (error as { error?: { code?: string } } | undefined)?.error?.code ?? "unknown";
+  throw new ApiError(response.status, code);
 }
 
 export async function fetchInstance(): Promise<Instance> {
