@@ -5,6 +5,7 @@ header = """
 # Changelog
 
 All notable changes to laneway. Generated from the commit history, see CONTRIBUTING.md.
+
 """
 body = """
 {% if version %}\
@@ -13,9 +14,9 @@ body = """
 ## Unreleased
 {% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
-### {{ group | striptags | trim | upper_first }}
+### {{ group | striptags | trim }}
 {% for commit in commits %}
-- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}\
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message }}\
 {% if commit.breaking %} (**breaking**){% endif %}\
 {% endfor %}
 {% endfor %}\n
