@@ -36,7 +36,9 @@ Section numbers (§) refer to the design plan (`docs/PLAN.md`, kept locally).
 - [x] Example compose files (`compose.yml` app + worker, `compose.aio.yml` all in one), tested in CI against the image built there
 - [x] CI: dev container build
 - [x] CI: Playwright e2e (`web/e2e`, `./dev.sh e2e`) against the Docker image with a real Postgres: setup, login, logout, German UI
-- [ ] CI: coverage gates (`cargo-llvm-cov`), markdown link check
+- [x] CI: markdown link check (lychee, relative links and fragments in README, CONTRIBUTING, SECURITY, docs, examples)
+- [ ] Link check: external links too, in a scheduled job that opens an issue instead of failing pushes
+- [ ] CI: coverage gates (`cargo-llvm-cov`)
 - [ ] e2e: run the tests in Firefox and WebKit too, not only Chromium
 - [ ] e2e: `./dev.sh e2e` without native mode needs Playwright's Chromium in the dev container
 
