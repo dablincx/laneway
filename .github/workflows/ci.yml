@@ -41,6 +41,9 @@ jobs:
       - run: cargo nextest run --workspace --locked --no-tests=pass
       - name: env var docs + .env.example up to date
         run: cargo run -q -p laneway-server -- config docs --check
+      - name: translations (laneway i18n check)
+        if: matrix.arch == 'amd64'
+        run: cargo run -q -p laneway-server -- i18n check
 
   deny:
     runs-on: ubuntu-latest
