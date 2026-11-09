@@ -1,5 +1,7 @@
 //! laneway: database access. Postgres 18 only, plain SQL migrations in `migrations/`.
 
+pub mod settings;
+
 use std::time::Duration;
 
 pub use sqlx::PgPool;
