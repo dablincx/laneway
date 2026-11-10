@@ -26,6 +26,8 @@ pub enum Error {
     NotFound,
     #[error("the column still has cards")]
     ColumnNotEmpty,
+    #[error("the board already has a label with that name")]
+    LabelTaken,
     #[error(transparent)]
     Auth(#[from] laneway_auth::Error),
     #[error(transparent)]

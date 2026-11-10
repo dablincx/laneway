@@ -6,6 +6,19 @@ export type Column = components["schemas"]["Column"];
 export type Card = components["schemas"]["Card"];
 export type CardChanges = components["schemas"]["UpdateCardRequest"];
 export type Priority = components["schemas"]["Priority"];
+export type Label = components["schemas"]["Label"];
+export type LabelColor = components["schemas"]["LabelColor"];
+export const labelColors: LabelColor[] = [
+  "gray",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "pink",
+];
 /** Lowest first. */
 export const priorities: Priority[] = ["low", "medium", "high", "urgent"];
 
@@ -84,6 +97,29 @@ export const boardApi = {
       await api.POST("/api/v1/cards/{card_id}/move", {
         params: { path: { card_id: cardId } },
         body: { column_id: columnId, index },
+      }),
+    ),
+  createLabel: async (boardId: string, name: string, color: LabelColor) =>
+    unwrap(
+      await api.POST("/api/v1/boards/{board_id}/labels", {
+        params: { path: { board_id: boardId } },
+        body: { name, color },
+      }),
+    ),
+  updateLabel: async (labelId: string, changes: { name?: string; color?: LabelColor }) =>
+    unwrap(
+      await api.PATCH("/api/v1/labels/{label_id}", {
+        params: { path: { label_id: labelId } },
+        body: changes,
+      }),
+    ),
+  deleteLabel: async (labelId: string) =>
+    unwrap(await api.DELETE("/api/v1/labels/{label_id}", { params: { path: { label_id: labelId } } })),
+  setCardLabels: async (cardId: string, labelIds: string[]) =>
+    unwrap(
+      await api.PUT("/api/v1/cards/{card_id}/labels", {
+        params: { path: { card_id: cardId } },
+        body: { label_ids: labelIds },
       }),
     ),
   deleteCard: async (cardId: string) =>

@@ -31,6 +31,8 @@ pub enum Invalid {
     /// The start date is after the due date.
     Dates,
     Estimate,
+    LabelName,
+    LabelColor,
 }
 
 /// Account details for a new user.

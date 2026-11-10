@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use laneway_db::PgPool;
 use laneway_db::actions::Action;
 use laneway_db::boards::{self as db, Board, Card, Column};
+use laneway_db::labels::{self as labels_db, CardLabel, Label};
 use serde_json::{Value, json};
 use sqlx::PgTransaction;
 use uuid::Uuid;
@@ -35,6 +36,8 @@ pub struct BoardView {
     pub board: Board,
     pub columns: Vec<Column>,
     pub cards: Vec<Card>,
+    pub labels: Vec<Label>,
+    pub card_labels: Vec<CardLabel>,
 }
 
 // --- validation ---
@@ -201,7 +204,7 @@ pub async fn create(
         created.push(column);
     }
     tx.commit().await?;
-    Ok(BoardView { board, columns: created, cards: Vec::new() })
+    Ok(BoardView { board, columns: created, cards: Vec::new(), labels: Vec::new(), card_labels: Vec::new() })
 }
 
 pub async fn get(pool: &PgPool, actor: Actor, board_id: Uuid) -> Result<BoardView, Error> {
@@ -211,7 +214,9 @@ pub async fn get(pool: &PgPool, actor: Actor, board_id: Uuid) -> Result<BoardVie
     }
     let columns = db::columns(pool, board_id).await?;
     let cards = db::cards(pool, board_id).await?;
-    Ok(BoardView { board, columns, cards })
+    let labels = labels_db::list(pool, board_id).await?;
+    let card_labels = labels_db::on_board(pool, board_id).await?;
+    Ok(BoardView { board, columns, cards, labels, card_labels })
 }
 
 /// Fields to change on a board. `None` = leave as is.
@@ -529,6 +534,128 @@ pub async fn delete_card(pool: &PgPool, actor: Actor, card_id: Uuid) -> Result<(
     .await?;
     tx.commit().await?;
     Ok(())
+}
+
+// --- labels ---
+
+/// Label colors, from the palette the web UI knows.
+pub const LABEL_COLORS: [&str; 9] =
+    ["gray", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"];
+
+fn label_color(value: &str) -> Result<String, Error> {
+    if LABEL_COLORS.contains(&value) {
+        Ok(value.to_owned())
+    } else {
+        Err(Error::Invalid(Invalid::LabelColor))
+    }
+}
+
+fn label_taken(e: sqlx::Error) -> Error {
+    match e {
+        sqlx::Error::Database(d) if d.constraint() == Some("labels_board_name_uidx") => Error::LabelTaken,
+        e => e.into(),
+    }
+}
+
+async fn writable_label(tx: &mut PgTransaction<'_>, actor: Actor, label_id: Uuid) -> Result<Label, Error> {
+    let label = labels_db::get(&mut **tx, label_id).await?.ok_or(Error::NotFound)?;
+    writable_board(tx, actor, label.board_id).await?;
+    Ok(label)
+}
+
+/// Adds a label to a board. Names are unique per board, ignoring case.
+pub async fn create_label(
+    pool: &PgPool,
+    actor: Actor,
+    board_id: Uuid,
+    label_name: &str,
+    color: &str,
+) -> Result<Label, Error> {
+    let label_name = name(label_name, 50, Invalid::LabelName)?;
+    let color = label_color(color)?;
+    let mut tx = pool.begin().await?;
+    writable_board(&mut tx, actor, board_id).await?;
+    let label = Label { id: laneway_db::new_id(), board_id, name: label_name, color, created_at: Utc::now() };
+    labels_db::upsert(&mut *tx, &label).await.map_err(label_taken)?;
+    record(&mut tx, actor, board_id, "label.create", to_json(&label), json!({ "delete_label": label.id }))
+        .await?;
+    tx.commit().await?;
+    Ok(label)
+}
+
+/// Renames or recolors a label. `None` = leave as is.
+pub async fn update_label(
+    pool: &PgPool,
+    actor: Actor,
+    label_id: Uuid,
+    new_name: Option<&str>,
+    color: Option<&str>,
+) -> Result<Label, Error> {
+    let mut tx = pool.begin().await?;
+    let old = writable_label(&mut tx, actor, label_id).await?;
+    let mut new = old.clone();
+    if let Some(n) = new_name {
+        new.name = name(n, 50, Invalid::LabelName)?;
+    }
+    if let Some(c) = color {
+        new.color = label_color(c)?;
+    }
+    labels_db::upsert(&mut *tx, &new).await.map_err(label_taken)?;
+    let fields = |l: &Label| json!({ "id": l.id, "name": l.name, "color": l.color });
+    record(&mut tx, actor, new.board_id, "label.update", fields(&new), fields(&old)).await?;
+    tx.commit().await?;
+    Ok(new)
+}
+
+/// Deletes a label and takes it off every card. The undo info keeps which cards had it.
+pub async fn delete_label(pool: &PgPool, actor: Actor, label_id: Uuid) -> Result<(), Error> {
+    let mut tx = pool.begin().await?;
+    let old = writable_label(&mut tx, actor, label_id).await?;
+    let cards = labels_db::cards_with(&mut *tx, label_id).await?;
+    labels_db::delete(&mut *tx, label_id).await?;
+    record(
+        &mut tx,
+        actor,
+        old.board_id,
+        "label.delete",
+        json!({ "id": old.id }),
+        json!({ "restore_label": old, "on_cards": cards }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Sets which labels a card has. Every label must belong to the card's board.
+pub async fn set_card_labels(
+    pool: &PgPool,
+    actor: Actor,
+    card_id: Uuid,
+    label_ids: &[Uuid],
+) -> Result<Vec<Uuid>, Error> {
+    let mut tx = pool.begin().await?;
+    let card = writable_card(&mut tx, actor, card_id).await?;
+    let board_labels: Vec<Uuid> =
+        labels_db::list(&mut *tx, card.board_id).await?.iter().map(|l| l.id).collect();
+    if label_ids.iter().any(|id| !board_labels.contains(id)) {
+        return Err(Error::NotFound);
+    }
+    let old = labels_db::of_card(&mut *tx, card_id).await?;
+    labels_db::set_on_card(&mut tx, card_id, label_ids).await?;
+    let new = labels_db::of_card(&mut *tx, card_id).await?;
+    if new != old {
+        record(
+            &mut tx,
+            actor,
+            card.board_id,
+            "card.labels",
+            json!({ "id": card_id, "label_ids": new }),
+            json!({ "id": card_id, "label_ids": old }),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(new)
 }
 
 /// Recent actions on a board, newest first.

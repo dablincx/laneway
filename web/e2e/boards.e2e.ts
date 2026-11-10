@@ -162,7 +162,17 @@ async function keyDrag(
     await said("dnd-over", { item, target });
     if (landed) await expect(landed).toBeVisible();
   }
-  await page.keyboard.press("Space");
+  await dropped(page, () => page.keyboard.press("Space"));
+}
+
+/**
+ * Drops (with `drop`) and waits until the server has saved the move, so a reload right after
+ * doesn't cancel the request.
+ */
+async function dropped(page: import("@playwright/test").Page, drop: () => Promise<void>) {
+  const saved = page.waitForResponse((r) => /\/move$/.test(new URL(r.url()).pathname) && r.ok());
+  await drop();
+  await saved;
 }
 
 test("drag a card to another column with the mouse", async ({ page }) => {
@@ -182,7 +192,7 @@ test("drag a card to another column with the mouse", async ({ page }) => {
   await page.mouse.move(to.x + to.width / 2, to.y + 40, { steps: 10 });
   // The card moves into the column while it is still being dragged; drop only once it has.
   await expect(doing.getByRole("button", { name: "wash car" })).toBeVisible();
-  await page.mouse.up();
+  await dropped(page, () => page.mouse.up());
   await page.reload();
   await expect(doing.getByRole("button", { name: "wash car" })).toBeVisible();
   await expect(todo.getByRole("button", { name: "wash car" })).toHaveCount(0);
@@ -250,6 +260,64 @@ test("column settings: WIP limit and done column", async ({ page }) => {
   // A column with cards can't be deleted.
   await todo.getByRole("button", { name: en("column-settings") }).click();
   await expect(dialog.getByRole("button", { name: en("column-delete") })).toBeDisabled();
+});
+
+test("labels: create, put on a card, rename, delete", async ({ page }) => {
+  const { todo } = await newBoard(page, "e2e labels", ["fix login"]);
+  const dialog = page.getByRole("dialog");
+  await page.getByRole("button", { name: en("label-manage") }).click();
+  await expect(dialog.getByText(en("label-none"))).toBeVisible();
+  for (const [name, color] of [
+    ["bug", "label-color-red"],
+    ["ui", "label-color-blue"],
+  ] as const) {
+    await dialog.getByLabel(en("label-new-name")).fill(name);
+    await dialog.locator("#label-new-color").selectOption({ label: en(color) });
+    await dialog.getByRole("button", { name: en("label-new-submit") }).click();
+    await expect(dialog.getByLabel(en("label-field-name"), { exact: true })).toHaveCount(
+      name === "bug" ? 1 : 2,
+    );
+  }
+  // Names are unique per board, ignoring case.
+  await dialog.getByLabel(en("label-new-name")).fill("BUG");
+  await dialog.getByRole("button", { name: en("label-new-submit") }).click();
+  await expect(dialog.getByText(en("error-label-taken"))).toBeVisible();
+  await page.keyboard.press("Escape");
+  // Closing animates; wait until it is gone so the next step doesn't hit the old dialog.
+  await expect(dialog).toBeHidden();
+
+  // Toggle one on the card; it saves right away.
+  await todo.getByRole("button", { name: /fix login/ }).click();
+  await dialog.getByRole("button", { name: "bug", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "bug", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  // Closing animates; wait until it is gone so the next step doesn't hit the old dialog.
+  await expect(dialog).toBeHidden();
+  const card = todo.getByRole("button", { name: /fix login/ });
+  await expect(card.getByText("bug", { exact: true })).toBeVisible();
+  await expect(card.getByText("ui", { exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(card.getByText("bug", { exact: true })).toBeVisible();
+
+  // Renaming shows on the card, deleting takes it off.
+  await page.getByRole("button", { name: en("label-manage") }).click();
+  const name = dialog.getByLabel(en("label-field-name"), { exact: true }).first();
+  await name.fill("defect");
+  await name.press("Enter");
+  await page.keyboard.press("Escape");
+  // Closing animates; wait until it is gone so the next step doesn't hit the old dialog.
+  await expect(dialog).toBeHidden();
+  await expect(card.getByText("defect", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: en("label-manage") }).click();
+  await dialog.getByRole("button", { name: text("en", "label-delete", { name: "defect" }) }).click();
+  await expect(dialog.getByLabel(en("label-field-name"), { exact: true })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  // Closing animates; wait until it is gone so the next step doesn't hit the old dialog.
+  await expect(dialog).toBeHidden();
+  await expect(card.getByText("defect", { exact: true })).toHaveCount(0);
 });
 
 test.describe("german", () => {

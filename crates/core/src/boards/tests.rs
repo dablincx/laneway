@@ -248,3 +248,65 @@ async fn card_details_validation(pool: PgPool) {
     let same = CardChanges { start_at: Some(Some(now)), ..Default::default() };
     try_update(same).await.unwrap();
 }
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn labels_on_cards(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let view = board(&pool, alex).await;
+    let card = create_card(&pool, alex, view.columns[0].id, "c", "").await.unwrap();
+    let bug = create_label(&pool, alex, view.board.id, " bug ", "red").await.unwrap();
+    let ui = create_label(&pool, alex, view.board.id, "UI", "blue").await.unwrap();
+    assert_eq!(bug.name, "bug");
+
+    // Names are unique per board, ignoring case.
+    assert!(matches!(create_label(&pool, alex, view.board.id, "BUG", "green").await, Err(Error::LabelTaken)));
+    assert!(matches!(update_label(&pool, alex, ui.id, Some("Bug"), None).await, Err(Error::LabelTaken)));
+    assert!(matches!(
+        create_label(&pool, alex, view.board.id, "x", "chartreuse").await,
+        Err(Error::Invalid(Invalid::LabelColor))
+    ));
+    assert!(matches!(
+        create_label(&pool, alex, view.board.id, &"x".repeat(51), "red").await,
+        Err(Error::Invalid(Invalid::LabelName))
+    ));
+
+    let set = set_card_labels(&pool, alex, card.id, &[ui.id, bug.id]).await.unwrap();
+    assert_eq!(set, [bug.id, ui.id], "sorted by name");
+    let v = get(&pool, alex, view.board.id).await.unwrap();
+    assert_eq!(v.labels.iter().map(|l| l.name.as_str()).collect::<Vec<_>>(), ["bug", "UI"]);
+    assert_eq!(v.card_labels.len(), 2);
+
+    // Setting the same labels again records nothing new.
+    let before = history(&pool, alex, view.board.id, 500).await.unwrap().len();
+    set_card_labels(&pool, alex, card.id, &[bug.id, ui.id]).await.unwrap();
+    assert_eq!(history(&pool, alex, view.board.id, 500).await.unwrap().len(), before);
+
+    let renamed = update_label(&pool, alex, ui.id, Some("frontend"), Some("purple")).await.unwrap();
+    assert_eq!((renamed.name.as_str(), renamed.color.as_str()), ("frontend", "purple"));
+
+    // Deleting a label takes it off the card; the undo info knows which cards had it.
+    delete_label(&pool, alex, bug.id).await.unwrap();
+    let v = get(&pool, alex, view.board.id).await.unwrap();
+    assert_eq!(v.card_labels.iter().map(|cl| cl.label_id).collect::<Vec<_>>(), [ui.id]);
+    let last = &history(&pool, alex, view.board.id, 1).await.unwrap()[0];
+    assert_eq!(last.kind, "label.delete");
+    assert_eq!(last.inverse["on_cards"][0], card.id.to_string());
+    assert_eq!(last.inverse["restore_label"]["name"], "bug");
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn labels_stay_on_their_board(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let sam = user(&pool, "sam").await;
+    let alexs = board(&pool, alex).await;
+    let other = board(&pool, alex).await;
+    let card = create_card(&pool, alex, alexs.columns[0].id, "c", "").await.unwrap();
+    let foreign = create_label(&pool, alex, other.board.id, "elsewhere", "gray").await.unwrap();
+    // A label of another board can't go on this card.
+    assert!(matches!(set_card_labels(&pool, alex, card.id, &[foreign.id]).await, Err(Error::NotFound)));
+    // Other users can't see or touch labels.
+    assert!(matches!(create_label(&pool, sam, alexs.board.id, "x", "red").await, Err(Error::NotFound)));
+    assert!(matches!(update_label(&pool, sam, foreign.id, Some("y"), None).await, Err(Error::NotFound)));
+    assert!(matches!(delete_label(&pool, sam, foreign.id).await, Err(Error::NotFound)));
+    assert!(matches!(set_card_labels(&pool, sam, card.id, &[]).await, Err(Error::NotFound)));
+}

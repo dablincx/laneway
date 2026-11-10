@@ -329,6 +329,66 @@
         }
       }
     },
+    "/api/v1/boards/{board_id}/labels": {
+      "post": {
+        "tags": [
+          "boards"
+        ],
+        "summary": "Adds a label to a board.",
+        "operationId": "create_label",
+        "parameters": [
+          {
+            "name": "board_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLabelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Label"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`label_taken`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cards/{card_id}": {
       "delete": {
         "tags": [
@@ -393,6 +453,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Card"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cards/{card_id}/labels": {
+      "put": {
+        "tags": [
+          "boards"
+        ],
+        "summary": "Sets a card's labels.",
+        "operationId": "set_card_labels",
+        "parameters": [
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardLabels"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardLabels"
                 }
               }
             }
@@ -669,6 +779,96 @@
         }
       }
     },
+    "/api/v1/labels/{label_id}": {
+      "delete": {
+        "tags": [
+          "boards"
+        ],
+        "summary": "Deletes a label and takes it off every card.",
+        "operationId": "delete_label",
+        "parameters": [
+          {
+            "name": "label_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "boards"
+        ],
+        "summary": "Renames or recolors a label. Fields left out stay as they are.",
+        "operationId": "update_label",
+        "parameters": [
+          {
+            "name": "label_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLabelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Label"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`label_taken`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
@@ -808,15 +1008,24 @@
       },
       "BoardDetail": {
         "type": "object",
-        "description": "A board with its columns and cards, both in display order.",
+        "description": "A board with its columns and cards, both in display order, and its labels.",
         "required": [
           "board",
           "columns",
-          "cards"
+          "cards",
+          "labels",
+          "card_labels"
         ],
         "properties": {
           "board": {
             "$ref": "#/components/schemas/Board"
+          },
+          "card_labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardLabel"
+            },
+            "description": "Which card has which label."
           },
           "cards": {
             "type": "array",
@@ -829,6 +1038,13 @@
             "items": {
               "$ref": "#/components/schemas/Column"
             }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Label"
+            },
+            "description": "By name."
           }
         }
       },
@@ -919,6 +1135,39 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "CardLabel": {
+        "type": "object",
+        "required": [
+          "card_id",
+          "label_id"
+        ],
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CardLabels": {
+        "type": "object",
+        "required": [
+          "label_ids"
+        ],
+        "properties": {
+          "label_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Labels of the card's board. The card ends up with exactly these."
           }
         }
       },
@@ -1023,6 +1272,22 @@
           }
         }
       },
+      "CreateLabelRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "color"
+        ],
+        "properties": {
+          "color": {
+            "$ref": "#/components/schemas/LabelColor"
+          },
+          "name": {
+            "type": "string",
+            "description": "1 to 50 characters, unique on the board (ignoring case)."
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "required": [
@@ -1106,6 +1371,45 @@
             "type": "string"
           }
         }
+      },
+      "Label": {
+        "type": "object",
+        "required": [
+          "id",
+          "board_id",
+          "name",
+          "color"
+        ],
+        "properties": {
+          "board_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "color": {
+            "$ref": "#/components/schemas/LabelColor"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "LabelColor": {
+        "type": "string",
+        "enum": [
+          "gray",
+          "red",
+          "orange",
+          "yellow",
+          "green",
+          "teal",
+          "blue",
+          "purple",
+          "pink"
+        ]
       },
       "LoginRequest": {
         "type": "object",
@@ -1345,6 +1649,27 @@
             ],
             "format": "int32",
             "description": "A number sets the limit, `null` removes it, leaving it out keeps it."
+          }
+        }
+      },
+      "UpdateLabelRequest": {
+        "type": "object",
+        "properties": {
+          "color": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LabelColor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

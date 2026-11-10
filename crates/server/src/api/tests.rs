@@ -349,3 +349,62 @@ async fn card_details_patch_set_keep_clear(pool: PgPool) {
         (StatusCode::UNPROCESSABLE_ENTITY, Some("invalid_request"))
     );
 }
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn labels_over_http(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+    let created = api.post("/api/v1/boards", json!({"name": "Home", "columns": [{"name": "To do"}]})).await;
+    let board_id = created.body["board"]["id"].as_str().unwrap().to_owned();
+    let todo = created.body["columns"][0]["id"].as_str().unwrap().to_owned();
+    let card = api.post(&format!("/api/v1/columns/{todo}/cards"), json!({"title": "Taxes"})).await;
+    let card_id = card.body["id"].as_str().unwrap().to_owned();
+
+    let label = api
+        .post(&format!("/api/v1/boards/{board_id}/labels"), json!({"name": "money", "color": "green"}))
+        .await;
+    assert_eq!(label.status, StatusCode::CREATED, "{}", label.body);
+    let label_id = label.body["id"].as_str().unwrap().to_owned();
+    let taken = api
+        .post(&format!("/api/v1/boards/{board_id}/labels"), json!({"name": "Money", "color": "red"}))
+        .await;
+    assert_eq!(
+        (taken.status, taken.body["error"]["code"].as_str()),
+        (StatusCode::CONFLICT, Some("label_taken"))
+    );
+    let bad =
+        api.post(&format!("/api/v1/boards/{board_id}/labels"), json!({"name": "x", "color": "beige"})).await;
+    assert_eq!(bad.body["error"]["code"], "invalid_request");
+
+    let set = api
+        .call(
+            "PUT",
+            &format!("/api/v1/cards/{card_id}/labels"),
+            Some(json!({"label_ids": [label_id]})),
+            Some(PUBLIC_URL),
+        )
+        .await;
+    assert_eq!(set.status, StatusCode::OK, "{}", set.body);
+    assert_eq!(set.body["label_ids"][0], label_id.as_str());
+
+    let view = api.get(&format!("/api/v1/boards/{board_id}")).await;
+    assert_eq!(view.body["labels"][0]["color"], "green");
+    assert_eq!(view.body["card_labels"][0], json!({"card_id": card_id, "label_id": label_id}));
+
+    let patched = api
+        .call(
+            "PATCH",
+            &format!("/api/v1/labels/{label_id}"),
+            Some(json!({"color": "teal"})),
+            Some(PUBLIC_URL),
+        )
+        .await;
+    assert_eq!(
+        (patched.body["name"].as_str(), patched.body["color"].as_str()),
+        (Some("money"), Some("teal"))
+    );
+    let deleted = api.call("DELETE", &format!("/api/v1/labels/{label_id}"), None, Some(PUBLIC_URL)).await;
+    assert_eq!(deleted.status, StatusCode::NO_CONTENT);
+    let view = api.get(&format!("/api/v1/boards/{board_id}")).await;
+    assert_eq!(view.body["card_labels"], json!([]));
+}
