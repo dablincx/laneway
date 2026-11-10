@@ -53,7 +53,11 @@ feature they belong to.
 ## v0.2.0 Full kanban (`feat/kanban`)
 
 - [ ] Columns, swimlanes, drag and drop, WIP limits, done column, archive, board + card templates, duplicate board (§5)
-- [ ] Cards: markdown, checklists, subtasks, labels, priority, dates, estimates, custom fields, assignees, watchers, comments, @mentions, attachments + covers, relations, recurring cards, card aging
+  - [x] Drag and drop for cards (within and across columns) and columns, mouse and keyboard, screen reader announcements (dnd-kit)
+  - [x] Column settings dialog: name, WIP limit (over-limit warning on the column), done column, delete
+  - [ ] Swimlanes, drag and drop across lanes and boards
+  - [ ] Archive/restore, board + card templates, duplicate board
+- [ ] Cards: markdown (rendered in the browser, no raw HTML), checklists, subtasks, labels, priority, dates, estimates, custom fields, assignees, watchers, comments, @mentions, attachments + covers (`LANEWAY_ATTACHMENT_MAX_SIZE_MB`, default 24, files in the board's directory under `attachments/<uuid>.<ext>`), relations, recurring cards, card aging
 - [ ] Views: board, list, table, my tasks; filter bar, search, command palette, keyboard shortcuts, dark mode toggle
 - [ ] Realtime updates over websockets + presence
 - [ ] Trash bin (`LANEWAY_TRASH_RETENTION_DAYS`)

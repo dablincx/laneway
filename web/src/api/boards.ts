@@ -42,6 +42,16 @@ export const boardApi = {
         body: { name },
       }),
     ),
+  updateColumn: async (
+    columnId: string,
+    changes: { name?: string; is_done?: boolean; wip_limit?: number | null },
+  ) =>
+    unwrap(
+      await api.PATCH("/api/v1/columns/{column_id}", {
+        params: { path: { column_id: columnId } },
+        body: changes,
+      }),
+    ),
   deleteColumn: async (columnId: string) =>
     unwrap(await api.DELETE("/api/v1/columns/{column_id}", { params: { path: { column_id: columnId } } })),
   moveColumn: async (columnId: string, index: number) =>
