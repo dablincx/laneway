@@ -196,7 +196,7 @@ test("reorder cards and move them across columns with the keyboard", async ({ pa
   ]);
   // The done column marks it as done.
   await expect(done.getByRole("button", { name: "first" })).toBeVisible();
-  await expect(done.getByLabel(en("card-done"))).toBeVisible();
+  await expect(done.getByLabel(en("card-done"), { exact: true })).toBeVisible();
   await page.reload();
   await expect(done.getByRole("button", { name: "first" })).toBeVisible();
   await expect(todo.getByRole("listitem")).toHaveText(["second"]);
