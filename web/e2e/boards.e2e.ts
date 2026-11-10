@@ -168,18 +168,24 @@ async function keyDrag(
 test("drag a card to another column with the mouse", async ({ page }) => {
   const { todo, doing } = await newBoard(page, "e2e drag mouse", ["wash car"]);
   const card = todo.getByRole("button", { name: "wash car" });
-  const from = await card.boundingBox();
-  const to = await doing.boundingBox();
-  if (!from || !to) throw new Error("no layout");
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await card.hover();
   await page.mouse.down();
-  // A few steps, so the drag starts (5px threshold) and the columns see the card coming.
-  await page.mouse.move(from.x + 40, from.y + 10, { steps: 5 });
+  // Past the 5px threshold, then wait until dnd-kit has really picked it up.
+  const from = await card.boundingBox();
+  if (!from) throw new Error("no layout");
+  await page.mouse.move(from.x + from.width / 2 + 20, from.y + from.height / 2 + 10, { steps: 5 });
+  await expect(
+    page.getByText(text("en", "dnd-picked-up", { item: "wash car" }), { exact: true }),
+  ).toBeAttached();
+  const to = await doing.boundingBox();
+  if (!to) throw new Error("no layout");
   await page.mouse.move(to.x + to.width / 2, to.y + 40, { steps: 10 });
-  await page.mouse.up();
+  // The card moves into the column while it is still being dragged; drop only once it has.
   await expect(doing.getByRole("button", { name: "wash car" })).toBeVisible();
+  await page.mouse.up();
   await page.reload();
   await expect(doing.getByRole("button", { name: "wash car" })).toBeVisible();
+  await expect(todo.getByRole("button", { name: "wash car" })).toHaveCount(0);
 });
 
 test("reorder cards and move them across columns with the keyboard", async ({ page }) => {
