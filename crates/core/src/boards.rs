@@ -38,11 +38,13 @@ pub struct BoardView {
     pub cards: Vec<Card>,
     pub labels: Vec<Label>,
     pub card_labels: Vec<CardLabel>,
+    pub checklists: Vec<laneway_db::checklists::Checklist>,
+    pub checklist_items: Vec<laneway_db::checklists::Item>,
 }
 
 // --- validation ---
 
-fn name(value: &str, max: usize, invalid: Invalid) -> Result<String, Error> {
+pub(crate) fn name(value: &str, max: usize, invalid: Invalid) -> Result<String, Error> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.chars().count() > max {
         return Err(Error::Invalid(invalid));
@@ -91,7 +93,11 @@ fn wip_limit(value: Option<i32>) -> Result<Option<i32>, Error> {
 // --- access + actions ---
 
 /// Loads and locks a board the actor may change, or `NotFound`.
-async fn writable_board(tx: &mut PgTransaction<'_>, actor: Actor, board_id: Uuid) -> Result<Board, Error> {
+pub(crate) async fn writable_board(
+    tx: &mut PgTransaction<'_>,
+    actor: Actor,
+    board_id: Uuid,
+) -> Result<Board, Error> {
     let board = db::get_for_update(&mut **tx, board_id).await?.ok_or(Error::NotFound)?;
     if board.owner_id != actor.user_id() {
         return Err(Error::NotFound);
@@ -99,7 +105,7 @@ async fn writable_board(tx: &mut PgTransaction<'_>, actor: Actor, board_id: Uuid
     Ok(board)
 }
 
-async fn record(
+pub(crate) async fn record(
     tx: &mut PgTransaction<'_>,
     actor: Actor,
     board_id: Uuid,
@@ -124,12 +130,12 @@ async fn record(
     Ok(())
 }
 
-fn to_json<T: serde::Serialize>(value: &T) -> Value {
+pub(crate) fn to_json<T: serde::Serialize>(value: &T) -> Value {
     serde_json::to_value(value).unwrap_or(Value::Null)
 }
 
 /// Key for putting an item at `index` among `others` (already sorted, without the item).
-fn position_at(others: &[&str], index: usize) -> Result<String, Error> {
+pub(crate) fn position_at(others: &[&str], index: usize) -> Result<String, Error> {
     let index = index.min(others.len());
     let before = index.checked_sub(1).map(|i| others[i]);
     let after = others.get(index).copied();
@@ -204,7 +210,15 @@ pub async fn create(
         created.push(column);
     }
     tx.commit().await?;
-    Ok(BoardView { board, columns: created, cards: Vec::new(), labels: Vec::new(), card_labels: Vec::new() })
+    Ok(BoardView {
+        board,
+        columns: created,
+        cards: Vec::new(),
+        labels: Vec::new(),
+        card_labels: Vec::new(),
+        checklists: Vec::new(),
+        checklist_items: Vec::new(),
+    })
 }
 
 pub async fn get(pool: &PgPool, actor: Actor, board_id: Uuid) -> Result<BoardView, Error> {
@@ -216,7 +230,9 @@ pub async fn get(pool: &PgPool, actor: Actor, board_id: Uuid) -> Result<BoardVie
     let cards = db::cards(pool, board_id).await?;
     let labels = labels_db::list(pool, board_id).await?;
     let card_labels = labels_db::on_board(pool, board_id).await?;
-    Ok(BoardView { board, columns, cards, labels, card_labels })
+    let checklists = laneway_db::checklists::on_board(pool, board_id).await?;
+    let checklist_items = laneway_db::checklists::items_on_board(pool, board_id).await?;
+    Ok(BoardView { board, columns, cards, labels, card_labels, checklists, checklist_items })
 }
 
 /// Fields to change on a board. `None` = leave as is.
@@ -424,7 +440,11 @@ pub async fn create_card(
     Ok(card)
 }
 
-async fn writable_card(tx: &mut PgTransaction<'_>, actor: Actor, card_id: Uuid) -> Result<Card, Error> {
+pub(crate) async fn writable_card(
+    tx: &mut PgTransaction<'_>,
+    actor: Actor,
+    card_id: Uuid,
+) -> Result<Card, Error> {
     let card = db::card(&mut **tx, card_id).await?.ok_or(Error::NotFound)?;
     writable_board(tx, actor, card.board_id).await?;
     db::card(&mut **tx, card_id).await?.ok_or(Error::NotFound)

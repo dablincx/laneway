@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO checklist_items (id, checklist_id, text, done, position, created_at)\n         VALUES ($1, $2, $3, $4, $5, $6)\n         ON CONFLICT (id) DO UPDATE SET text = EXCLUDED.text, done = EXCLUDED.done, position = EXCLUDED.position",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Bool",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "be69071241bbdbb0b6d7cd6bb28486234703b611cfe823b82f5812b92b1e3d45"
+}

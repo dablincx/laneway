@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM checklist_items WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "checklist_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "done",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "674fa70ec634ffae4897bf506561c94d26d50cafba2dbb604b9a9d62c12c149a"
+}

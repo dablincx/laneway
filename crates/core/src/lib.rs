@@ -3,6 +3,7 @@
 
 pub mod accounts;
 pub mod boards;
+pub mod checklists;
 pub mod crypto;
 pub mod position;
 pub mod settings;

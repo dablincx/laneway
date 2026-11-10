@@ -143,6 +143,23 @@ export interface paths {
         patch: operations["update_card"];
         trace?: never;
     };
+    "/api/v1/cards/{card_id}/checklists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a checklist at the end of a card's checklists. */
+        post: operations["create_checklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cards/{card_id}/labels": {
         parameters: {
             query?: never;
@@ -171,6 +188,76 @@ export interface paths {
         put?: never;
         /** Moves a card within or between columns. */
         post: operations["move_card"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checklist-items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an item. */
+        delete: operations["delete_item"];
+        options?: never;
+        head?: never;
+        /** Changes an item's text or ticks it. Fields left out stay as they are. */
+        patch: operations["update_item"];
+        trace?: never;
+    };
+    "/api/v1/checklist-items/{item_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Moves an item within its checklist. */
+        post: operations["move_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/checklists/{checklist_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a checklist and its items. */
+        delete: operations["delete_checklist"];
+        options?: never;
+        head?: never;
+        /** Renames a checklist. */
+        patch: operations["update_checklist"];
+        trace?: never;
+    };
+    "/api/v1/checklists/{checklist_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds an item at the end of a checklist. */
+        post: operations["add_item"];
         delete?: never;
         options?: never;
         head?: never;
@@ -302,6 +389,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AddItemRequest: {
+            /** @description 1 to 500 characters. */
+            text: string;
+        };
         Board: {
             /** @description Agents (MCP) can see and use this board. */
             agent_access_enabled: boolean;
@@ -324,6 +415,10 @@ export interface components {
             /** @description Which card has which label. */
             card_labels: components["schemas"]["CardLabel"][];
             cards: components["schemas"]["Card"][];
+            /** @description Every item of those checklists, in order per checklist. */
+            checklist_items: components["schemas"]["ChecklistItem"][];
+            /** @description Every checklist on the board's cards, in order per card. */
+            checklists: components["schemas"]["Checklist"][];
             columns: components["schemas"]["Column"][];
             /** @description By name. */
             labels: components["schemas"]["Label"][];
@@ -368,6 +463,29 @@ export interface components {
         CardLabels: {
             /** @description Labels of the card's board. The card ends up with exactly these. */
             label_ids: string[];
+        };
+        Checklist: {
+            /** Format: uuid */
+            card_id: string;
+            /** Format: uuid */
+            id: string;
+            /** @description Sort key among the card's checklists. Checklists are returned in order. */
+            position: string;
+            title: string;
+        };
+        ChecklistItem: {
+            /** Format: uuid */
+            checklist_id: string;
+            done: boolean;
+            /** Format: uuid */
+            id: string;
+            /** @description Sort key within the checklist. Items are returned in order. */
+            position: string;
+            text: string;
+        };
+        ChecklistRequest: {
+            /** @description 1 to 200 characters. */
+            title: string;
         };
         Column: {
             /** Format: uuid */
@@ -473,6 +591,10 @@ export interface components {
             /** @description New place among the board's columns, 0 = leftmost. Past the end = last. */
             index: number;
         };
+        MoveItemRequest: {
+            /** @description New place in the checklist, 0 = top. Past the end = bottom. */
+            index: number;
+        };
         NewColumnRequest: {
             is_done?: boolean;
             name: string;
@@ -518,6 +640,10 @@ export interface components {
              * @description A number sets the limit, `null` removes it, leaving it out keeps it.
              */
             wip_limit?: number | null;
+        };
+        UpdateItemRequest: {
+            done?: boolean | null;
+            text?: string | null;
         };
         UpdateLabelRequest: {
             color?: components["schemas"]["LabelColor"] | null;
@@ -869,6 +995,39 @@ export interface operations {
             };
         };
     };
+    create_checklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChecklistRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Checklist"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     set_card_labels: {
         parameters: {
             query?: never;
@@ -923,6 +1082,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Card"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateItemRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistItem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    move_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveItemRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistItem"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_checklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                checklist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_checklist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                checklist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChecklistRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Checklist"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                checklist_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddItemRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistItem"];
                 };
             };
             404: {

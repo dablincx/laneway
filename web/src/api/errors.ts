@@ -27,6 +27,8 @@ const messages: Record<string, string> = {
   invalid_label_name: "error-invalid-label-name",
   invalid_label_color: "error-invalid-label-color",
   label_taken: "error-label-taken",
+  invalid_checklist_title: "error-invalid-checklist-title",
+  invalid_item_text: "error-invalid-item-text",
   column_not_empty: "error-column-not-empty",
   not_found: "error-not-found",
 };

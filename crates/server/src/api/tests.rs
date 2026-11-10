@@ -408,3 +408,55 @@ async fn labels_over_http(pool: PgPool) {
     let view = api.get(&format!("/api/v1/boards/{board_id}")).await;
     assert_eq!(view.body["card_labels"], json!([]));
 }
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn checklists_over_http(pool: PgPool) {
+    let mut api = Api::new(pool.clone());
+    set_up(&pool, &mut api).await;
+    let created = api.post("/api/v1/boards", json!({"name": "Home", "columns": [{"name": "To do"}]})).await;
+    let board_id = created.body["board"]["id"].as_str().unwrap().to_owned();
+    let todo = created.body["columns"][0]["id"].as_str().unwrap().to_owned();
+    let card = api.post(&format!("/api/v1/columns/{todo}/cards"), json!({"title": "Trip"})).await;
+    let card_id = card.body["id"].as_str().unwrap().to_owned();
+
+    let list = api.post(&format!("/api/v1/cards/{card_id}/checklists"), json!({"title": "Packing"})).await;
+    assert_eq!(list.status, StatusCode::CREATED, "{}", list.body);
+    let list_id = list.body["id"].as_str().unwrap().to_owned();
+    let mut ids = Vec::new();
+    for text in ["socks", "passport"] {
+        let item = api.post(&format!("/api/v1/checklists/{list_id}/items"), json!({"text": text})).await;
+        assert_eq!(item.status, StatusCode::CREATED, "{}", item.body);
+        ids.push(item.body["id"].as_str().unwrap().to_owned());
+    }
+    let ticked = api
+        .call(
+            "PATCH",
+            &format!("/api/v1/checklist-items/{}", ids[1]),
+            Some(json!({"done": true})),
+            Some(PUBLIC_URL),
+        )
+        .await;
+    assert_eq!((ticked.body["done"].as_bool(), ticked.body["text"].as_str()), (Some(true), Some("passport")));
+    let moved = api.post(&format!("/api/v1/checklist-items/{}/move", ids[1]), json!({"index": 0})).await;
+    assert_eq!(moved.status, StatusCode::OK, "{}", moved.body);
+
+    let view = api.get(&format!("/api/v1/boards/{board_id}")).await;
+    assert_eq!(view.body["checklists"][0]["title"], "Packing");
+    let texts: Vec<&str> = view.body["checklist_items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(texts, ["passport", "socks"]);
+
+    let bad = api.post(&format!("/api/v1/checklists/{list_id}/items"), json!({"text": ""})).await;
+    assert_eq!(bad.body["error"]["code"], "invalid_item_text");
+    let gone = api.call("DELETE", &format!("/api/v1/checklists/{list_id}"), None, Some(PUBLIC_URL)).await;
+    assert_eq!(gone.status, StatusCode::NO_CONTENT);
+    let view = api.get(&format!("/api/v1/boards/{board_id}")).await;
+    assert_eq!(
+        (view.body["checklists"].clone(), view.body["checklist_items"].clone()),
+        (json!([]), json!([]))
+    );
+}

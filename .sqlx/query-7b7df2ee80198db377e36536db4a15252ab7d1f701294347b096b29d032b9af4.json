@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT i.* FROM checklist_items i JOIN checklists cl ON cl.id = i.checklist_id\n         JOIN cards c ON c.id = cl.card_id\n         WHERE c.board_id = $1 ORDER BY i.checklist_id, i.position, i.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "checklist_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "done",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "position",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7b7df2ee80198db377e36536db4a15252ab7d1f701294347b096b29d032b9af4"
+}

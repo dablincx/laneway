@@ -320,6 +320,49 @@ test("labels: create, put on a card, rename, delete", async ({ page }) => {
   await expect(card.getByText("defect", { exact: true })).toHaveCount(0);
 });
 
+test("checklists: add items, tick, rename, delete", async ({ page }) => {
+  const { todo } = await newBoard(page, "e2e checklists", ["trip"]);
+  const card = todo.getByRole("button", { name: /trip/ });
+  const dialog = page.getByRole("dialog");
+  await card.click();
+  await dialog.getByRole("button", { name: en("checklist-add") }).click();
+  const list = dialog.getByRole("region", { name: en("checklist-default-title") });
+  await expect(list).toBeVisible();
+
+  // Enter adds an item and keeps the focus there, without submitting the card dialog.
+  const newItem = list.getByLabel(en("checklist-item-new"));
+  await newItem.fill("socks");
+  await newItem.press("Enter");
+  await expect(list.getByRole("checkbox", { name: "socks" })).toBeVisible();
+  await expect(newItem).toBeFocused();
+  await newItem.fill("passport");
+  await newItem.press("Enter");
+  await list.getByRole("checkbox", { name: "passport" }).check();
+  await expect(list.getByText(text("en", "checklist-progress", { done: "1", total: "2" }))).toBeVisible();
+
+  await list.getByRole("button", { name: en("checklist-rename") }).click();
+  await list.getByRole("textbox", { name: en("checklist-rename") }).fill("Packing");
+  await list.getByRole("textbox", { name: en("checklist-rename") }).press("Enter");
+  const packing = dialog.getByRole("region", { name: "Packing" });
+  await expect(packing).toBeVisible();
+  await expect(dialog).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(card.getByText("1/2")).toBeVisible();
+  await page.reload();
+  await expect(card.getByText("1/2")).toBeVisible();
+
+  await card.click();
+  await packing.getByRole("button", { name: text("en", "checklist-item-delete", { text: "socks" }) }).click();
+  await expect(packing.getByText(text("en", "checklist-progress", { done: "1", total: "1" }))).toBeVisible();
+  await packing.getByRole("button", { name: text("en", "checklist-delete", { title: "Packing" }) }).click();
+  await expect(packing).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(card.getByText("1/1")).toHaveCount(0);
+});
+
 test.describe("german", () => {
   test.use({ locale: "de-DE" });
 

@@ -22,7 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, redirect } from "@tanstack/react-router";
-import { AlignLeft, CalendarDays, Check, GripVertical, Settings2, Tags } from "lucide-react";
+import { AlignLeft, CalendarDays, Check, GripVertical, ListChecks, Settings2, Tags } from "lucide-react";
 import { createContext, lazy, Suspense, useContext, useRef, useState } from "react";
 
 import {
@@ -35,9 +35,11 @@ import {
   type Priority,
   priorities,
 } from "@/api/boards";
+import type { Checklist, ChecklistItem } from "@/api/checklists";
 import { errorMessage } from "@/api/errors";
 import { AppHeader } from "@/components/app-header";
 import { FormError } from "@/components/form";
+import { InlineEdit } from "@/components/inline-edit";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,7 @@ import {
 import { formatDay, fromDateInput, isOverdue, toDateInput } from "@/lib/dates";
 import { useBoardMutation } from "@/lib/use-board-mutation";
 import { LabelChip, LabelPicker, LabelsDialog } from "./board-labels";
+import { CardChecklists, progress } from "./card-checklists";
 import { rootRoute } from "./root";
 import { meQuery } from "./session";
 
@@ -100,9 +103,21 @@ function BoardPage() {
   const { columns, cards } = board.data;
   const labelById = new Map(board.data.labels.map((l) => [l.id, l]));
   const cardLabelIds = new Map<string, string[]>();
-  for (const { card_id, label_id } of board.data.card_labels) {
-    cardLabelIds.set(card_id, [...(cardLabelIds.get(card_id) ?? []), label_id]);
+  for (const { card_id, label_id } of board.data.card_labels) pushTo(cardLabelIds, card_id, label_id);
+  // Grouped once per render, so each card looks its checklists up instead of scanning them all.
+  const checklistsByCard = new Map<string, Checklist[]>();
+  const cardOfChecklist = new Map<string, string>();
+  for (const c of board.data.checklists) {
+    pushTo(checklistsByCard, c.card_id, c);
+    cardOfChecklist.set(c.id, c.card_id);
   }
+  const itemsByCard = new Map<string, ChecklistItem[]>();
+  for (const item of board.data.checklist_items) {
+    const cardId = cardOfChecklist.get(item.checklist_id);
+    if (cardId) pushTo(itemsByCard, cardId, item);
+  }
+  const checklistsOf = (cardId: string) => checklistsByCard.get(cardId) ?? [];
+  const itemsOf = (cardId: string) => itemsByCard.get(cardId) ?? [];
   const labelsOf = (cardId: string) =>
     (cardLabelIds.get(cardId) ?? []).flatMap((id) => labelById.get(id) ?? []);
   const serverLayout = layoutOf(columns, cards);
@@ -214,85 +229,89 @@ function BoardPage() {
       <FormError message={rename.isError ? errorMessage(t, rename.error) : null} />
       <FormError message={moveError.isError ? errorMessage(t, moveError.error) : null} />
       <CardLabelsContext.Provider value={labelsOf}>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          // Cards jump between columns while dragging, so positions are measured on every move,
-          // not just when the drag starts (else the next arrow key works from stale positions).
-          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-          onDragStart={onDragStart}
-          onDragOver={onDragOver}
-          onDragEnd={onDragEnd}
-          onDragCancel={() => {
-            setActiveId(null);
-            setDragLayout(null);
-          }}
-          accessibility={{
-            screenReaderInstructions: { draggable: t("dnd-instructions") },
-            announcements: {
-              onDragStart: ({ active }) => t("dnd-picked-up", { item: nameOf(active.id) }),
-              // Right after picking something up it is "over" itself; that isn't worth saying.
-              onDragOver: ({ active, over }) =>
-                over && over.id !== active.id
-                  ? t("dnd-over", { item: nameOf(active.id), target: nameOf(over.id) })
-                  : undefined,
-              onDragEnd: ({ active, over }) =>
-                over
-                  ? t("dnd-dropped", { item: nameOf(active.id), target: nameOf(over.id) })
-                  : t("dnd-dropped-nowhere", { item: nameOf(active.id) }),
-              onDragCancel: ({ active }) => t("dnd-cancelled", { item: nameOf(active.id) }),
-            },
-          }}
-        >
-          <main className="flex flex-1 gap-3 overflow-x-auto p-4">
-            <SortableContext
-              items={layout.columns.map((id) => COLUMN + id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {layout.columns.map((columnId) => {
-                const column = columnById.get(columnId);
-                if (!column) return null;
-                const columnCards = (layout.cards[columnId] ?? []).flatMap((cid) => cardById.get(cid) ?? []);
-                return (
-                  <ColumnView
-                    key={columnId}
-                    boardId={boardId}
-                    column={column}
-                    cards={columnCards}
-                    onOpenCard={setOpenCard}
-                    onSettings={() => setSettingsFor(columnId)}
-                  />
-                );
-              })}
-            </SortableContext>
-            <form
-              className="flex w-72 shrink-0 flex-col gap-2 self-start"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                addColumn.mutate([String(new FormData(form).get("name") ?? "")], {
-                  onSuccess: () => form.reset(),
-                });
-              }}
-            >
-              <Input
-                name="name"
-                aria-label={t("column-new-name")}
-                placeholder={t("column-new-name")}
-                required
-              />
-              <FormError message={addColumn.isError ? errorMessage(t, addColumn.error) : null} />
-            </form>
-          </main>
-          <DragOverlay>
-            {activeCard ? <CardFace card={activeCard} className="shadow-lg" /> : null}
-            {activeColumn ? (
-              <div className="w-72 rounded-lg border bg-muted px-3 py-2 text-sm font-medium shadow-lg">
-                {activeColumn.name}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        <CardChecklistContext.Provider value={(cardId) => progress(itemsOf(cardId))}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            // Cards jump between columns while dragging, so positions are measured on every move,
+            // not just when the drag starts (else the next arrow key works from stale positions).
+            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragEnd={onDragEnd}
+            onDragCancel={() => {
+              setActiveId(null);
+              setDragLayout(null);
+            }}
+            accessibility={{
+              screenReaderInstructions: { draggable: t("dnd-instructions") },
+              announcements: {
+                onDragStart: ({ active }) => t("dnd-picked-up", { item: nameOf(active.id) }),
+                // Right after picking something up it is "over" itself; that isn't worth saying.
+                onDragOver: ({ active, over }) =>
+                  over && over.id !== active.id
+                    ? t("dnd-over", { item: nameOf(active.id), target: nameOf(over.id) })
+                    : undefined,
+                onDragEnd: ({ active, over }) =>
+                  over
+                    ? t("dnd-dropped", { item: nameOf(active.id), target: nameOf(over.id) })
+                    : t("dnd-dropped-nowhere", { item: nameOf(active.id) }),
+                onDragCancel: ({ active }) => t("dnd-cancelled", { item: nameOf(active.id) }),
+              },
+            }}
+          >
+            <main className="flex flex-1 gap-3 overflow-x-auto p-4">
+              <SortableContext
+                items={layout.columns.map((id) => COLUMN + id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                {layout.columns.map((columnId) => {
+                  const column = columnById.get(columnId);
+                  if (!column) return null;
+                  const columnCards = (layout.cards[columnId] ?? []).flatMap(
+                    (cid) => cardById.get(cid) ?? [],
+                  );
+                  return (
+                    <ColumnView
+                      key={columnId}
+                      boardId={boardId}
+                      column={column}
+                      cards={columnCards}
+                      onOpenCard={setOpenCard}
+                      onSettings={() => setSettingsFor(columnId)}
+                    />
+                  );
+                })}
+              </SortableContext>
+              <form
+                className="flex w-72 shrink-0 flex-col gap-2 self-start"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  addColumn.mutate([String(new FormData(form).get("name") ?? "")], {
+                    onSuccess: () => form.reset(),
+                  });
+                }}
+              >
+                <Input
+                  name="name"
+                  aria-label={t("column-new-name")}
+                  placeholder={t("column-new-name")}
+                  required
+                />
+                <FormError message={addColumn.isError ? errorMessage(t, addColumn.error) : null} />
+              </form>
+            </main>
+            <DragOverlay>
+              {activeCard ? <CardFace card={activeCard} className="shadow-lg" /> : null}
+              {activeColumn ? (
+                <div className="w-72 rounded-lg border bg-muted px-3 py-2 text-sm font-medium shadow-lg">
+                  {activeColumn.name}
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </CardChecklistContext.Provider>
       </CardLabelsContext.Provider>
       {card && (
         <CardDialog
@@ -301,6 +320,8 @@ function BoardPage() {
           columns={columns}
           labels={board.data.labels}
           cardLabels={cardLabelIds.get(card.id) ?? []}
+          checklists={checklistsOf(card.id)}
+          checklistItems={itemsOf(card.id)}
           onManageLabels={() => {
             setOpenCard(null);
             setLabelsOpen(true);
@@ -323,8 +344,21 @@ function BoardPage() {
   );
 }
 
+/** Appends to the list under `key`, creating it on first use. */
+function pushTo<T>(map: Map<string, T[]>, key: string, value: T) {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
 /** The labels on a card, resolved from the board. */
 const CardLabelsContext = createContext<(cardId: string) => BoardLabel[]>(() => []);
+
+/** Done and total checklist items of a card. */
+const CardChecklistContext = createContext<(cardId: string) => { done: number; total: number }>(() => ({
+  done: 0,
+  total: 0,
+}));
 
 /** Sortable ids of columns start with this, card ids are plain UUIDs. */
 const COLUMN = "column:";
@@ -485,8 +519,10 @@ function SortableCard({ card, onOpen }: { card: Card; onOpen: () => void }) {
 function CardFace({ card, className }: { card: Card; className?: string }) {
   const { t, locale } = useI18n();
   const labels = useContext(CardLabelsContext)(card.id);
+  const checklist = useContext(CardChecklistContext)(card.id);
   const overdue = card.due_at != null && card.completed_at == null && isOverdue(card.due_at);
-  const hasBadges = card.priority || card.due_at || card.estimate != null || card.description;
+  const hasBadges =
+    card.priority || card.due_at || card.estimate != null || card.description || checklist.total > 0;
   return (
     <div
       className={`flex flex-col gap-1.5 rounded-md border bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent ${
@@ -525,6 +561,17 @@ function CardFace({ card, className }: { card: Card; className?: string }) {
               title={t("card-estimate-badge", { estimate: card.estimate })}
             >
               {card.estimate}
+            </span>
+          )}
+          {checklist.total > 0 && (
+            <span
+              className={`inline-flex items-center gap-1 rounded px-1 ${
+                checklist.done === checklist.total ? "bg-green-500/15 text-green-700 dark:text-green-300" : ""
+              }`}
+              title={t("card-checklist-badge", checklist)}
+            >
+              <ListChecks className="size-3" aria-hidden />
+              {checklist.done}/{checklist.total}
             </span>
           )}
           {card.description && <AlignLeft className="size-3" aria-label={t("card-has-description")} />}
@@ -666,6 +713,8 @@ function CardDialog({
   columns,
   labels,
   cardLabels,
+  checklists,
+  checklistItems,
   onManageLabels,
   onClose,
 }: {
@@ -674,6 +723,8 @@ function CardDialog({
   columns: Column[];
   labels: BoardLabel[];
   cardLabels: string[];
+  checklists: Checklist[];
+  checklistItems: ChecklistItem[];
   onManageLabels: () => void;
   onClose: () => void;
 }) {
@@ -831,6 +882,7 @@ function CardDialog({
               </p>
             </div>
           </div>
+          <CardChecklists boardId={boardId} cardId={card.id} checklists={checklists} items={checklistItems} />
           <FormError message={error ? errorMessage(t, error) : null} />
           <div className="flex justify-between gap-2">
             <Button
@@ -859,50 +911,6 @@ function CardDialog({
 
 /** The markdown renderer is its own chunk, loaded the first time a description is shown. */
 const Markdown = lazy(() => import("@/components/markdown"));
-
-/** Text that turns into an input on click and saves on Enter or blur. */
-function InlineEdit({
-  label,
-  value,
-  onSave,
-  className,
-}: {
-  label: string;
-  value: string;
-  onSave: (value: string) => void;
-  className?: string;
-}) {
-  const [editing, setEditing] = useState(false);
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        aria-label={label}
-        className={`truncate text-left ${className ?? ""}`}
-        onClick={() => setEditing(true)}
-      >
-        {value}
-      </button>
-    );
-  }
-  const finish = (next: string) => {
-    setEditing(false);
-    if (next.trim() && next !== value) onSave(next);
-  };
-  return (
-    <Input
-      autoFocus
-      aria-label={label}
-      defaultValue={value}
-      className="h-7"
-      onBlur={(e) => finish(e.currentTarget.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") finish(e.currentTarget.value);
-        if (e.key === "Escape") setEditing(false);
-      }}
-    />
-  );
-}
 
 export const boardRoute = createRoute({
   getParentRoute: () => rootRoute,

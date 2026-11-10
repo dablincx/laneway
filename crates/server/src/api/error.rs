@@ -84,6 +84,10 @@ impl From<Error> for ApiError {
                     Invalid::Estimate => ("invalid_estimate", "the estimate must be between 0 and 100000"),
                     Invalid::LabelName => ("invalid_label_name", "label names are 1-50 characters"),
                     Invalid::LabelColor => ("invalid_label_color", "that isn't one of the label colors"),
+                    Invalid::ChecklistTitle => {
+                        ("invalid_checklist_title", "checklist titles are 1-200 characters")
+                    }
+                    Invalid::ItemText => ("invalid_item_text", "checklist items are 1-500 characters"),
                 };
                 Self::new(S::UNPROCESSABLE_ENTITY, code, message)
             }

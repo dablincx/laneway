@@ -61,7 +61,9 @@ feature they belong to.
   - [x] Markdown descriptions with write/preview (rendered in the browser, lazy-loaded, no raw HTML, safe links)
   - [x] Priority (low, medium, high, urgent), start and due dates (overdue marker), estimate
   - [x] Board labels (name + color from a fixed palette, unique per board), shown on cards, picked in the card dialog
-  - [ ] Checklists, subtasks, custom fields
+  - [x] Checklists: several per card, items with text and done, progress on the card
+  - [ ] Checklist items: drag to reorder in the UI (the API can already move them)
+  - [ ] Subtasks, custom fields
   - [ ] Assignees, watchers, comments, @mentions
   - [ ] Attachments + covers, relations, recurring cards, card aging
 - [ ] Views: board, list, table, my tasks; filter bar, search, command palette, keyboard shortcuts, dark mode toggle

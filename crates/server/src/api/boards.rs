@@ -167,6 +167,10 @@ pub struct BoardDetail {
     labels: Vec<Label>,
     /// Which card has which label.
     card_labels: Vec<CardLabel>,
+    /// Every checklist on the board's cards, in order per card.
+    checklists: Vec<super::checklists::Checklist>,
+    /// Every item of those checklists, in order per checklist.
+    checklist_items: Vec<super::checklists::ChecklistItem>,
 }
 
 impl From<boards::BoardView> for BoardDetail {
@@ -181,6 +185,8 @@ impl From<boards::BoardView> for BoardDetail {
                 .into_iter()
                 .map(|cl| CardLabel { card_id: cl.card_id, label_id: cl.label_id })
                 .collect(),
+            checklists: v.checklists.into_iter().map(Into::into).collect(),
+            checklist_items: v.checklist_items.into_iter().map(Into::into).collect(),
         }
     }
 }

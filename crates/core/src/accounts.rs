@@ -33,6 +33,8 @@ pub enum Invalid {
     Estimate,
     LabelName,
     LabelColor,
+    ChecklistTitle,
+    ItemText,
 }
 
 /// Account details for a new user.

@@ -2,6 +2,7 @@
 
 pub mod actions;
 pub mod boards;
+pub mod checklists;
 pub mod labels;
 pub mod sessions;
 pub mod settings;

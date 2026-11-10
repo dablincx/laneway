@@ -469,6 +469,56 @@
         }
       }
     },
+    "/api/v1/cards/{card_id}/checklists": {
+      "post": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Adds a checklist at the end of a card's checklists.",
+        "operationId": "create_checklist",
+        "parameters": [
+          {
+            "name": "card_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChecklistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checklist"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cards/{card_id}/labels": {
       "put": {
         "tags": [
@@ -553,6 +603,266 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Card"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checklist-items/{item_id}": {
+      "delete": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Deletes an item.",
+        "operationId": "delete_item",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Changes an item's text or ticks it. Fields left out stay as they are.",
+        "operationId": "update_item",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checklist-items/{item_id}/move": {
+      "post": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Moves an item within its checklist.",
+        "operationId": "move_item",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checklists/{checklist_id}": {
+      "delete": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Deletes a checklist and its items.",
+        "operationId": "delete_checklist",
+        "parameters": [
+          {
+            "name": "checklist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Renames a checklist.",
+        "operationId": "update_checklist",
+        "parameters": [
+          {
+            "name": "checklist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChecklistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checklist"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/checklists/{checklist_id}/items": {
+      "post": {
+        "tags": [
+          "checklists"
+        ],
+        "summary": "Adds an item at the end of a checklist.",
+        "operationId": "add_item",
+        "parameters": [
+          {
+            "name": "checklist_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItem"
                 }
               }
             }
@@ -961,6 +1271,18 @@
   },
   "components": {
     "schemas": {
+      "AddItemRequest": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "1 to 500 characters."
+          }
+        }
+      },
       "Board": {
         "type": "object",
         "required": [
@@ -1014,7 +1336,9 @@
           "columns",
           "cards",
           "labels",
-          "card_labels"
+          "card_labels",
+          "checklists",
+          "checklist_items"
         ],
         "properties": {
           "board": {
@@ -1032,6 +1356,20 @@
             "items": {
               "$ref": "#/components/schemas/Card"
             }
+          },
+          "checklist_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItem"
+            },
+            "description": "Every item of those checklists, in order per checklist."
+          },
+          "checklists": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Checklist"
+            },
+            "description": "Every checklist on the board's cards, in order per card."
           },
           "columns": {
             "type": "array",
@@ -1168,6 +1506,74 @@
               "format": "uuid"
             },
             "description": "Labels of the card's board. The card ends up with exactly these."
+          }
+        }
+      },
+      "Checklist": {
+        "type": "object",
+        "required": [
+          "id",
+          "card_id",
+          "title",
+          "position"
+        ],
+        "properties": {
+          "card_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "string",
+            "description": "Sort key among the card's checklists. Checklists are returned in order."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ChecklistItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "checklist_id",
+          "text",
+          "done",
+          "position"
+        ],
+        "properties": {
+          "checklist_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "string",
+            "description": "Sort key within the checklist. Items are returned in order."
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "ChecklistRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "1 to 200 characters."
           }
         }
       },
@@ -1501,6 +1907,19 @@
           }
         }
       },
+      "MoveItemRequest": {
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "New place in the checklist, 0 = top. Past the end = bottom.",
+            "minimum": 0
+          }
+        }
+      },
       "NewColumnRequest": {
         "type": "object",
         "required": [
@@ -1652,6 +2071,23 @@
           }
         }
       },
+      "UpdateItemRequest": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateLabelRequest": {
         "type": "object",
         "properties": {
@@ -1684,6 +2120,9 @@
     },
     {
       "name": "boards"
+    },
+    {
+      "name": "checklists"
     }
   ]
 }

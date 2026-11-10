@@ -2,6 +2,7 @@
 //! TypeScript client generated from it) always matches the code.
 
 pub mod boards;
+pub mod checklists;
 pub mod error;
 pub mod extract;
 pub mod limit;
@@ -33,7 +34,7 @@ use crate::http::AppState;
         description = "REST API of laneway. The web UI uses exactly this API.",
         license(name = "GPL-3.0-or-later", identifier = "GPL-3.0-or-later"),
     ),
-    tags((name = "instance"), (name = "auth"), (name = "boards"))
+    tags((name = "instance"), (name = "auth"), (name = "boards"), (name = "checklists"))
 )]
 struct ApiDoc;
 
@@ -50,6 +51,7 @@ fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(logout))
         .routes(routes!(me))
         .merge(boards::routes())
+        .merge(checklists::routes())
 }
 
 /// The OpenAPI document, with paths as served (under `/api/v1`).
