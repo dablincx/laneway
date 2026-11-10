@@ -80,7 +80,7 @@ else
 
   cargo build -q -p laneway-server
   # Only what the test instance needs; the dev settings from dev.sh stay out.
-  env -u LANEWAY_INITIAL_ADMIN_EMAIL -u LANEWAY_INITIAL_ADMIN_PASSWORD \
+  env -u LANEWAY_INITIAL_ADMIN_EMAIL -u LANEWAY_INITIAL_ADMIN_PASSWORD -u LANEWAY_E2E_PREVIEW \
     LANEWAY_PUBLIC_URL="http://localhost:$web_port" \
     LANEWAY_SECRET_KEY="${LANEWAY_SECRET_KEY:-e2e-test-secret-key-not-for-production}" \
     LANEWAY_DATABASE_URL="$db_url" \
