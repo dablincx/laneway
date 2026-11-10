@@ -274,7 +274,9 @@ test("labels: create, put on a card, rename, delete", async ({ page }) => {
     await dialog.getByLabel(en("label-new-name")).fill(name);
     await dialog.locator("#label-new-color").selectOption({ label: en(color) });
     await dialog.getByRole("button", { name: en("label-new-submit") }).click();
-    await expect(dialog.getByLabel(en("label-field-name"))).toHaveCount(name === "bug" ? 1 : 2);
+    await expect(dialog.getByLabel(en("label-field-name"), { exact: true })).toHaveCount(
+      name === "bug" ? 1 : 2,
+    );
   }
   // Names are unique per board, ignoring case.
   await dialog.getByLabel(en("label-new-name")).fill("BUG");
@@ -302,7 +304,7 @@ test("labels: create, put on a card, rename, delete", async ({ page }) => {
 
   // Renaming shows on the card, deleting takes it off.
   await page.getByRole("button", { name: en("label-manage") }).click();
-  const name = dialog.getByLabel(en("label-field-name")).first();
+  const name = dialog.getByLabel(en("label-field-name"), { exact: true }).first();
   await name.fill("defect");
   await name.press("Enter");
   await page.keyboard.press("Escape");
@@ -311,7 +313,7 @@ test("labels: create, put on a card, rename, delete", async ({ page }) => {
   await expect(card.getByText("defect", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: en("label-manage") }).click();
   await dialog.getByRole("button", { name: text("en", "label-delete", { name: "defect" }) }).click();
-  await expect(dialog.getByLabel(en("label-field-name"))).toHaveCount(1);
+  await expect(dialog.getByLabel(en("label-field-name"), { exact: true })).toHaveCount(1);
   await page.keyboard.press("Escape");
   // Closing animates; wait until it is gone so the next step doesn't hit the old dialog.
   await expect(dialog).toBeHidden();
