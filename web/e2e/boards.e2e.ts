@@ -83,6 +83,10 @@ async function keyDrag(
     expect(page.getByText(text("en", id, args), { exact: true })).toBeAttached();
   await page.keyboard.press("Space");
   await said("dnd-picked-up", { item });
+  // dnd-kit starts listening for the arrow keys one task after the pick-up (a setTimeout);
+  // a key pressed before that is lost. People are never that fast, tests against a
+  // production build are. Waiting for one task in the page lets dnd-kit's timer run first.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)));
   for (const [key, target, landed] of steps) {
     await page.keyboard.press(key);
     await said("dnd-over", { item, target });

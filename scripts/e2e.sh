@@ -4,6 +4,9 @@
 #   scripts/e2e.sh [playwright args]                  cargo-built server + Vite dev server
 #   scripts/e2e.sh --image <image> [playwright args]  the Docker image + a Postgres 18 container
 #
+# LANEWAY_E2E_PREVIEW=1 tests a production build of the web UI (vite build + vite preview)
+# instead of the dev server, like the image does in CI. Timing bugs can show up only there.
+#
 # Local mode creates (and afterwards drops) its own database next to $LANEWAY_DATABASE_URL, named
 # $LANEWAY_E2E_DATABASE (default laneway_e2e), and uses ports LANEWAY_E2E_PORT (server, default
 # 3100) and LANEWAY_E2E_PORT + 1 (Vite). Image mode publishes the app on LANEWAY_E2E_PORT.
@@ -89,9 +92,14 @@ else
   pids+=($!)
   wait_for "http://localhost:$port/readyz"
 
+  vite_mode=()
+  if [[ "${LANEWAY_E2E_PREVIEW:-}" == 1 ]]; then
+    (cd web && node_modules/.bin/vite build >"$tmp/vite-build.log" 2>&1)
+    vite_mode=(preview)
+  fi
   # The vite binary itself, not `pnpm exec`: killing pnpm would leave vite running.
   (cd web && LANEWAY_DEV_SERVER_URL="http://localhost:$port" \
-    exec node_modules/.bin/vite --port "$web_port" --strictPort >"$tmp/vite.log" 2>&1) &
+    exec node_modules/.bin/vite "${vite_mode[@]}" --port "$web_port" --strictPort >"$tmp/vite.log" 2>&1) &
   pids+=($!)
   wait_for "http://localhost:$web_port/"
   export LANEWAY_E2E_BASE_URL="http://localhost:$web_port"
