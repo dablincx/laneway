@@ -22,10 +22,11 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, redirect } from "@tanstack/react-router";
-import { AlignLeft, CalendarDays, Check, GripVertical, Settings2 } from "lucide-react";
-import { lazy, Suspense, useRef, useState } from "react";
+import { AlignLeft, CalendarDays, Check, GripVertical, Settings2, Tags } from "lucide-react";
+import { createContext, lazy, Suspense, useContext, useRef, useState } from "react";
 
 import {
+  type Label as BoardLabel,
   boardApi,
   boardQuery,
   type Card,
@@ -51,17 +52,10 @@ import {
   placeOf,
 } from "@/lib/board-layout";
 import { formatDay, fromDateInput, isOverdue, toDateInput } from "@/lib/dates";
+import { useBoardMutation } from "@/lib/use-board-mutation";
+import { LabelChip, LabelPicker, LabelsDialog } from "./board-labels";
 import { rootRoute } from "./root";
 import { meQuery } from "./session";
-
-/** Runs a board change and refreshes the board afterwards. */
-function useBoardMutation<A extends unknown[]>(boardId: string, fn: (...args: A) => Promise<unknown>) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (args: A) => fn(...args),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["board", boardId] }),
-  });
-}
 
 function BoardPage() {
   const { boardId } = boardRoute.useParams();
@@ -70,6 +64,7 @@ function BoardPage() {
   const board = useQuery(boardQuery(boardId));
   const [openCard, setOpenCard] = useState<string | null>(null);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const [labelsOpen, setLabelsOpen] = useState(false);
   // While dragging (and until the server has the result) the board shows this layout.
   const [dragLayout, setDragLayoutState] = useState<Layout | null>(null);
   // dnd-kit can call a handler from an earlier render (the keyboard sensor does), so the
@@ -103,6 +98,13 @@ function BoardPage() {
   }
   if (!board.data) return null;
   const { columns, cards } = board.data;
+  const labelById = new Map(board.data.labels.map((l) => [l.id, l]));
+  const cardLabelIds = new Map<string, string[]>();
+  for (const { card_id, label_id } of board.data.card_labels) {
+    cardLabelIds.set(card_id, [...(cardLabelIds.get(card_id) ?? []), label_id]);
+  }
+  const labelsOf = (cardId: string) =>
+    (cardLabelIds.get(cardId) ?? []).flatMap((id) => labelById.get(id) ?? []);
   const serverLayout = layoutOf(columns, cards);
   const layout = dragLayout ?? serverLayout;
   const columnById = new Map(columns.map((c) => [c.id, c]));
@@ -204,90 +206,110 @@ function BoardPage() {
           onSave={(name) => rename.mutate([name])}
           className="font-medium"
         />
+        <Button variant="ghost" size="sm" onClick={() => setLabelsOpen(true)}>
+          <Tags className="size-4" aria-hidden />
+          {t("label-manage")}
+        </Button>
       </AppHeader>
       <FormError message={rename.isError ? errorMessage(t, rename.error) : null} />
       <FormError message={moveError.isError ? errorMessage(t, moveError.error) : null} />
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        // Cards jump between columns while dragging, so positions are measured on every move,
-        // not just when the drag starts (else the next arrow key works from stale positions).
-        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => {
-          setActiveId(null);
-          setDragLayout(null);
-        }}
-        accessibility={{
-          screenReaderInstructions: { draggable: t("dnd-instructions") },
-          announcements: {
-            onDragStart: ({ active }) => t("dnd-picked-up", { item: nameOf(active.id) }),
-            // Right after picking something up it is "over" itself; that isn't worth saying.
-            onDragOver: ({ active, over }) =>
-              over && over.id !== active.id
-                ? t("dnd-over", { item: nameOf(active.id), target: nameOf(over.id) })
-                : undefined,
-            onDragEnd: ({ active, over }) =>
-              over
-                ? t("dnd-dropped", { item: nameOf(active.id), target: nameOf(over.id) })
-                : t("dnd-dropped-nowhere", { item: nameOf(active.id) }),
-            onDragCancel: ({ active }) => t("dnd-cancelled", { item: nameOf(active.id) }),
-          },
-        }}
-      >
-        <main className="flex flex-1 gap-3 overflow-x-auto p-4">
-          <SortableContext
-            items={layout.columns.map((id) => COLUMN + id)}
-            strategy={horizontalListSortingStrategy}
-          >
-            {layout.columns.map((columnId) => {
-              const column = columnById.get(columnId);
-              if (!column) return null;
-              const columnCards = (layout.cards[columnId] ?? []).flatMap((cid) => cardById.get(cid) ?? []);
-              return (
-                <ColumnView
-                  key={columnId}
-                  boardId={boardId}
-                  column={column}
-                  cards={columnCards}
-                  onOpenCard={setOpenCard}
-                  onSettings={() => setSettingsFor(columnId)}
-                />
-              );
-            })}
-          </SortableContext>
-          <form
-            className="flex w-72 shrink-0 flex-col gap-2 self-start"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = e.currentTarget;
-              addColumn.mutate([String(new FormData(form).get("name") ?? "")], {
-                onSuccess: () => form.reset(),
-              });
-            }}
-          >
-            <Input
-              name="name"
-              aria-label={t("column-new-name")}
-              placeholder={t("column-new-name")}
-              required
-            />
-            <FormError message={addColumn.isError ? errorMessage(t, addColumn.error) : null} />
-          </form>
-        </main>
-        <DragOverlay>
-          {activeCard ? <CardFace card={activeCard} className="shadow-lg" /> : null}
-          {activeColumn ? (
-            <div className="w-72 rounded-lg border bg-muted px-3 py-2 text-sm font-medium shadow-lg">
-              {activeColumn.name}
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      <CardLabelsContext.Provider value={labelsOf}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          // Cards jump between columns while dragging, so positions are measured on every move,
+          // not just when the drag starts (else the next arrow key works from stale positions).
+          measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => {
+            setActiveId(null);
+            setDragLayout(null);
+          }}
+          accessibility={{
+            screenReaderInstructions: { draggable: t("dnd-instructions") },
+            announcements: {
+              onDragStart: ({ active }) => t("dnd-picked-up", { item: nameOf(active.id) }),
+              // Right after picking something up it is "over" itself; that isn't worth saying.
+              onDragOver: ({ active, over }) =>
+                over && over.id !== active.id
+                  ? t("dnd-over", { item: nameOf(active.id), target: nameOf(over.id) })
+                  : undefined,
+              onDragEnd: ({ active, over }) =>
+                over
+                  ? t("dnd-dropped", { item: nameOf(active.id), target: nameOf(over.id) })
+                  : t("dnd-dropped-nowhere", { item: nameOf(active.id) }),
+              onDragCancel: ({ active }) => t("dnd-cancelled", { item: nameOf(active.id) }),
+            },
+          }}
+        >
+          <main className="flex flex-1 gap-3 overflow-x-auto p-4">
+            <SortableContext
+              items={layout.columns.map((id) => COLUMN + id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              {layout.columns.map((columnId) => {
+                const column = columnById.get(columnId);
+                if (!column) return null;
+                const columnCards = (layout.cards[columnId] ?? []).flatMap((cid) => cardById.get(cid) ?? []);
+                return (
+                  <ColumnView
+                    key={columnId}
+                    boardId={boardId}
+                    column={column}
+                    cards={columnCards}
+                    onOpenCard={setOpenCard}
+                    onSettings={() => setSettingsFor(columnId)}
+                  />
+                );
+              })}
+            </SortableContext>
+            <form
+              className="flex w-72 shrink-0 flex-col gap-2 self-start"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                addColumn.mutate([String(new FormData(form).get("name") ?? "")], {
+                  onSuccess: () => form.reset(),
+                });
+              }}
+            >
+              <Input
+                name="name"
+                aria-label={t("column-new-name")}
+                placeholder={t("column-new-name")}
+                required
+              />
+              <FormError message={addColumn.isError ? errorMessage(t, addColumn.error) : null} />
+            </form>
+          </main>
+          <DragOverlay>
+            {activeCard ? <CardFace card={activeCard} className="shadow-lg" /> : null}
+            {activeColumn ? (
+              <div className="w-72 rounded-lg border bg-muted px-3 py-2 text-sm font-medium shadow-lg">
+                {activeColumn.name}
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </CardLabelsContext.Provider>
       {card && (
-        <CardDialog boardId={boardId} card={card} columns={columns} onClose={() => setOpenCard(null)} />
+        <CardDialog
+          boardId={boardId}
+          card={card}
+          columns={columns}
+          labels={board.data.labels}
+          cardLabels={cardLabelIds.get(card.id) ?? []}
+          onManageLabels={() => {
+            setOpenCard(null);
+            setLabelsOpen(true);
+          }}
+          onClose={() => setOpenCard(null)}
+        />
+      )}
+      {labelsOpen && (
+        <LabelsDialog boardId={boardId} labels={board.data.labels} onClose={() => setLabelsOpen(false)} />
       )}
       {settingsColumn && (
         <ColumnSettingsDialog
@@ -300,6 +322,9 @@ function BoardPage() {
     </div>
   );
 }
+
+/** The labels on a card, resolved from the board. */
+const CardLabelsContext = createContext<(cardId: string) => BoardLabel[]>(() => []);
 
 /** Sortable ids of columns start with this, card ids are plain UUIDs. */
 const COLUMN = "column:";
@@ -459,6 +484,7 @@ function SortableCard({ card, onOpen }: { card: Card; onOpen: () => void }) {
 
 function CardFace({ card, className }: { card: Card; className?: string }) {
   const { t, locale } = useI18n();
+  const labels = useContext(CardLabelsContext)(card.id);
   const overdue = card.due_at != null && card.completed_at == null && isOverdue(card.due_at);
   const hasBadges = card.priority || card.due_at || card.estimate != null || card.description;
   return (
@@ -467,6 +493,13 @@ function CardFace({ card, className }: { card: Card; className?: string }) {
         className ?? ""
       }`}
     >
+      {labels.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {labels.map((label) => (
+            <LabelChip key={label.id} label={label} />
+          ))}
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <span className={`flex-1 ${card.completed_at ? "text-muted-foreground line-through" : ""}`}>
           {card.title}
@@ -631,11 +664,17 @@ function CardDialog({
   boardId,
   card,
   columns,
+  labels,
+  cardLabels,
+  onManageLabels,
   onClose,
 }: {
   boardId: string;
   card: Card;
   columns: Column[];
+  labels: BoardLabel[];
+  cardLabels: string[];
+  onManageLabels: () => void;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -728,6 +767,13 @@ function CardDialog({
               </>
             )}
           </div>
+          <LabelPicker
+            boardId={boardId}
+            cardId={card.id}
+            labels={labels}
+            selected={cardLabels}
+            onManage={onManageLabels}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="card-column">{t("card-field-column")}</Label>

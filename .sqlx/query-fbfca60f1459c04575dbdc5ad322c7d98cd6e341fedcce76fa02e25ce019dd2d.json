@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cl.label_id FROM card_labels cl JOIN labels l ON l.id = cl.label_id\n         WHERE cl.card_id = $1 ORDER BY lower(l.name)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fbfca60f1459c04575dbdc5ad322c7d98cd6e341fedcce76fa02e25ce019dd2d"
+}

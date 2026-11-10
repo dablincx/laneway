@@ -27,6 +27,9 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .routes(routes!(create_card))
         .routes(routes!(update_card, delete_card))
         .routes(routes!(move_card))
+        .routes(routes!(create_label))
+        .routes(routes!(update_label, delete_label))
+        .routes(routes!(set_card_labels))
 }
 
 fn actor(user: &CurrentUser) -> Actor {
@@ -154,12 +157,16 @@ impl From<laneway_db::boards::Card> for Card {
     }
 }
 
-/// A board with its columns and cards, both in display order.
+/// A board with its columns and cards, both in display order, and its labels.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BoardDetail {
     board: Board,
     columns: Vec<Column>,
     cards: Vec<Card>,
+    /// By name.
+    labels: Vec<Label>,
+    /// Which card has which label.
+    card_labels: Vec<CardLabel>,
 }
 
 impl From<boards::BoardView> for BoardDetail {
@@ -168,8 +175,81 @@ impl From<boards::BoardView> for BoardDetail {
             board: v.board.into(),
             columns: v.columns.into_iter().map(Into::into).collect(),
             cards: v.cards.into_iter().map(Into::into).collect(),
+            labels: v.labels.into_iter().map(Into::into).collect(),
+            card_labels: v
+                .card_labels
+                .into_iter()
+                .map(|cl| CardLabel { card_id: cl.card_id, label_id: cl.label_id })
+                .collect(),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum LabelColor {
+    Gray,
+    Red,
+    Orange,
+    Yellow,
+    Green,
+    Teal,
+    Blue,
+    Purple,
+    Pink,
+}
+
+impl LabelColor {
+    const ALL: [Self; 9] = [
+        Self::Gray,
+        Self::Red,
+        Self::Orange,
+        Self::Yellow,
+        Self::Green,
+        Self::Teal,
+        Self::Blue,
+        Self::Purple,
+        Self::Pink,
+    ];
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Gray => "gray",
+            Self::Red => "red",
+            Self::Orange => "orange",
+            Self::Yellow => "yellow",
+            Self::Green => "green",
+            Self::Teal => "teal",
+            Self::Blue => "blue",
+            Self::Purple => "purple",
+            Self::Pink => "pink",
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct Label {
+    id: Uuid,
+    board_id: Uuid,
+    name: String,
+    color: LabelColor,
+}
+
+impl From<laneway_db::labels::Label> for Label {
+    fn from(l: laneway_db::labels::Label) -> Self {
+        Self {
+            id: l.id,
+            board_id: l.board_id,
+            color: LabelColor::ALL.into_iter().find(|c| c.as_str() == l.color).unwrap_or(LabelColor::Gray),
+            name: l.name,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CardLabel {
+    card_id: Uuid,
+    label_id: Uuid,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -509,4 +589,98 @@ async fn move_card(
     Body(body): Body<MoveCardRequest>,
 ) -> Result<Json<Card>, ApiError> {
     Ok(Json(boards::move_card(&state.pool, actor(&user), card_id, body.column_id, body.index).await?.into()))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateLabelRequest {
+    /// 1 to 50 characters, unique on the board (ignoring case).
+    name: String,
+    color: LabelColor,
+}
+
+/// Adds a label to a board.
+#[utoipa::path(
+    post, path = "/boards/{board_id}/labels", tag = "boards", request_body = CreateLabelRequest,
+    responses(
+        (status = CREATED, body = Label),
+        (status = CONFLICT, body = ErrorBody, description = "`label_taken`"),
+        (status = NOT_FOUND, body = ErrorBody),
+    )
+)]
+async fn create_label(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(board_id): Path<Uuid>,
+    Body(body): Body<CreateLabelRequest>,
+) -> Result<(StatusCode, Json<Label>), ApiError> {
+    let label =
+        boards::create_label(&state.pool, actor(&user), board_id, &body.name, body.color.as_str()).await?;
+    Ok((StatusCode::CREATED, Json(label.into())))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UpdateLabelRequest {
+    name: Option<String>,
+    color: Option<LabelColor>,
+}
+
+/// Renames or recolors a label. Fields left out stay as they are.
+#[utoipa::path(
+    patch, path = "/labels/{label_id}", tag = "boards", request_body = UpdateLabelRequest,
+    responses(
+        (status = OK, body = Label),
+        (status = CONFLICT, body = ErrorBody, description = "`label_taken`"),
+        (status = NOT_FOUND, body = ErrorBody),
+    )
+)]
+async fn update_label(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(label_id): Path<Uuid>,
+    Body(body): Body<UpdateLabelRequest>,
+) -> Result<Json<Label>, ApiError> {
+    let label = boards::update_label(
+        &state.pool,
+        actor(&user),
+        label_id,
+        body.name.as_deref(),
+        body.color.map(LabelColor::as_str),
+    )
+    .await?;
+    Ok(Json(label.into()))
+}
+
+/// Deletes a label and takes it off every card.
+#[utoipa::path(
+    delete, path = "/labels/{label_id}", tag = "boards",
+    responses((status = NO_CONTENT), (status = NOT_FOUND, body = ErrorBody))
+)]
+async fn delete_label(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(label_id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    boards::delete_label(&state.pool, actor(&user), label_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct CardLabels {
+    /// Labels of the card's board. The card ends up with exactly these.
+    label_ids: Vec<Uuid>,
+}
+
+/// Sets a card's labels.
+#[utoipa::path(
+    put, path = "/cards/{card_id}/labels", tag = "boards", request_body = CardLabels,
+    responses((status = OK, body = CardLabels), (status = NOT_FOUND, body = ErrorBody))
+)]
+async fn set_card_labels(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(card_id): Path<Uuid>,
+    Body(body): Body<CardLabels>,
+) -> Result<Json<CardLabels>, ApiError> {
+    let label_ids = boards::set_card_labels(&state.pool, actor(&user), card_id, &body.label_ids).await?;
+    Ok(Json(CardLabels { label_ids }))
 }

@@ -82,6 +82,8 @@ impl From<Error> for ApiError {
                     }
                     Invalid::Dates => ("invalid_dates", "the start date is after the due date"),
                     Invalid::Estimate => ("invalid_estimate", "the estimate must be between 0 and 100000"),
+                    Invalid::LabelName => ("invalid_label_name", "label names are 1-50 characters"),
+                    Invalid::LabelColor => ("invalid_label_color", "that isn't one of the label colors"),
                 };
                 Self::new(S::UNPROCESSABLE_ENTITY, code, message)
             }
@@ -99,6 +101,9 @@ impl From<Error> for ApiError {
             Error::NotFound => Self::new(S::NOT_FOUND, "not_found", "not found"),
             Error::ColumnNotEmpty => {
                 Self::new(S::CONFLICT, "column_not_empty", "move or delete the cards in this column first")
+            }
+            Error::LabelTaken => {
+                Self::new(S::CONFLICT, "label_taken", "the board already has a label with that name")
             }
             Error::Auth(_) | Error::Database(_) => {
                 tracing::error!("internal error: {error}");

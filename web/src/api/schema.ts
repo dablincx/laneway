@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/boards/{board_id}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a label to a board. */
+        post: operations["create_label"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/cards/{card_id}": {
         parameters: {
             query?: never;
@@ -124,6 +141,23 @@ export interface paths {
         head?: never;
         /** Changes a card. Fields left out stay as they are. */
         patch: operations["update_card"];
+        trace?: never;
+    };
+    "/api/v1/cards/{card_id}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets a card's labels. */
+        put: operations["set_card_labels"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/cards/{card_id}/move": {
@@ -212,6 +246,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/labels/{label_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a label and takes it off every card. */
+        delete: operations["delete_label"];
+        options?: never;
+        head?: never;
+        /** Renames or recolors a label. Fields left out stay as they are. */
+        patch: operations["update_label"];
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -266,11 +318,15 @@ export interface components {
             /** Format: uuid */
             workspace_id: string;
         };
-        /** @description A board with its columns and cards, both in display order. */
+        /** @description A board with its columns and cards, both in display order, and its labels. */
         BoardDetail: {
             board: components["schemas"]["Board"];
+            /** @description Which card has which label. */
+            card_labels: components["schemas"]["CardLabel"][];
             cards: components["schemas"]["Card"][];
             columns: components["schemas"]["Column"][];
+            /** @description By name. */
+            labels: components["schemas"]["Label"][];
         };
         Card: {
             /** Format: uuid */
@@ -303,6 +359,16 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        CardLabel: {
+            /** Format: uuid */
+            card_id: string;
+            /** Format: uuid */
+            label_id: string;
+        };
+        CardLabels: {
+            /** @description Labels of the card's board. The card ends up with exactly these. */
+            label_ids: string[];
+        };
         Column: {
             /** Format: uuid */
             board_id: string;
@@ -334,6 +400,11 @@ export interface components {
             /** Format: int32 */
             wip_limit?: number | null;
         };
+        CreateLabelRequest: {
+            color: components["schemas"]["LabelColor"];
+            /** @description 1 to 50 characters, unique on the board (ignoring case). */
+            name: string;
+        };
         ErrorBody: {
             error: components["schemas"]["ErrorDetail"];
         };
@@ -362,6 +433,16 @@ export interface components {
             needs_setup: boolean;
             version: string;
         };
+        Label: {
+            /** Format: uuid */
+            board_id: string;
+            color: components["schemas"]["LabelColor"];
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        /** @enum {string} */
+        LabelColor: "gray" | "red" | "orange" | "yellow" | "green" | "teal" | "blue" | "purple" | "pink";
         LoginRequest: {
             /** @description Email or username. */
             login: string;
@@ -437,6 +518,10 @@ export interface components {
              * @description A number sets the limit, `null` removes it, leaving it out keeps it.
              */
             wip_limit?: number | null;
+        };
+        UpdateLabelRequest: {
+            color?: components["schemas"]["LabelColor"] | null;
+            name?: string | null;
         };
     };
     responses: never;
@@ -682,6 +767,48 @@ export interface operations {
             };
         };
     };
+    create_label: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                board_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateLabelRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `label_taken` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     delete_card: {
         parameters: {
             query?: never;
@@ -730,6 +857,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Card"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_card_labels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                card_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardLabels"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardLabels"];
                 };
             };
             404: {
@@ -925,6 +1085,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Instance"];
+                };
+            };
+        };
+    };
+    delete_label: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    update_label: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateLabelRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Label"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `label_taken` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

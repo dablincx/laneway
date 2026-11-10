@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO card_labels (card_id, label_id) SELECT $1, unnest($2::uuid[]) ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9dff0e87f3a4af530d17f916d8389d17bdc3d602b6c0936bb54b412db09fee13"
+}

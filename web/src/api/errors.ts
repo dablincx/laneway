@@ -24,6 +24,9 @@ const messages: Record<string, string> = {
   invalid_priority: "error-invalid-priority",
   invalid_dates: "error-invalid-dates",
   invalid_estimate: "error-invalid-estimate",
+  invalid_label_name: "error-invalid-label-name",
+  invalid_label_color: "error-invalid-label-color",
+  label_taken: "error-label-taken",
   column_not_empty: "error-column-not-empty",
   not_found: "error-not-found",
 };
