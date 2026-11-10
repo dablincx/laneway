@@ -21,6 +21,9 @@ const messages: Record<string, string> = {
   invalid_card_title: "error-invalid-card-title",
   description_too_long: "error-description-too-long",
   invalid_wip_limit: "error-invalid-wip-limit",
+  invalid_priority: "error-invalid-priority",
+  invalid_dates: "error-invalid-dates",
+  invalid_estimate: "error-invalid-estimate",
   column_not_empty: "error-column-not-empty",
   not_found: "error-not-found",
 };

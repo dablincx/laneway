@@ -81,7 +81,7 @@ async fn cards_move_between_columns_and_get_completed(pool: PgPool) {
         &pool,
         alex,
         b.id,
-        CardChanges { title: Some(" B2 ".into()), description: Some("x".into()) },
+        CardChanges { title: Some(" B2 ".into()), description: Some("x".into()), ..Default::default() },
     )
     .await
     .unwrap();
@@ -161,4 +161,90 @@ async fn validation(pool: PgPool) {
     ));
     // Nothing was recorded for the failed calls.
     assert_eq!(action_types(&pool, alex, view.board.id).await.len(), 4);
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn card_details_set_keep_and_clear(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let view = board(&pool, alex).await;
+    let card = create_card(&pool, alex, view.columns[0].id, "taxes", "").await.unwrap();
+    assert_eq!((card.priority.clone(), card.due_at, card.estimate), (None, None, None));
+
+    let start = Utc::now();
+    let due = start + chrono::Duration::days(3);
+    let set = CardChanges {
+        priority: Some(Some("high".into())),
+        start_at: Some(Some(start)),
+        due_at: Some(Some(due)),
+        estimate: Some(Some(2.5)),
+        ..Default::default()
+    };
+    let card = update_card(&pool, alex, card.id, set).await.unwrap();
+    assert_eq!(card.priority.as_deref(), Some("high"));
+    assert_eq!(card.estimate, Some(2.5));
+    // Postgres keeps microseconds.
+    assert_eq!(card.due_at.map(|d| d.timestamp_micros()), Some(due.timestamp_micros()));
+
+    // Leaving fields out keeps them; the stored card matches what update returned.
+    let card = update_card(
+        &pool,
+        alex,
+        card.id,
+        CardChanges { title: Some("taxes 2026".into()), ..Default::default() },
+    )
+    .await
+    .unwrap();
+    assert_eq!((card.priority.as_deref(), card.estimate), (Some("high"), Some(2.5)));
+    let stored =
+        get(&pool, alex, view.board.id).await.unwrap().cards.into_iter().find(|c| c.id == card.id).unwrap();
+    assert_eq!(stored.priority.as_deref(), Some("high"));
+    assert!(stored.start_at.is_some() && stored.due_at.is_some());
+
+    // `Some(None)` clears.
+    let clear = CardChanges {
+        priority: Some(None),
+        start_at: Some(None),
+        due_at: Some(None),
+        estimate: Some(None),
+        ..Default::default()
+    };
+    let card = update_card(&pool, alex, card.id, clear).await.unwrap();
+    assert_eq!((card.priority, card.start_at, card.due_at, card.estimate), (None, None, None, None));
+
+    // The action can undo it: the inverse has the old values.
+    let history = history(&pool, alex, view.board.id, 1).await.unwrap();
+    assert_eq!(history[0].inverse["priority"], "high");
+    assert_eq!(history[0].inverse["estimate"], 2.5);
+}
+
+#[sqlx::test(migrator = "laneway_db::MIGRATOR")]
+async fn card_details_validation(pool: PgPool) {
+    let alex = user(&pool, "alex").await;
+    let view = board(&pool, alex).await;
+    let card = create_card(&pool, alex, view.columns[0].id, "c", "").await.unwrap();
+    let try_update = |changes: CardChanges| update_card(&pool, alex, card.id, changes);
+
+    let bad_priority = CardChanges { priority: Some(Some("whenever".into())), ..Default::default() };
+    assert!(matches!(try_update(bad_priority).await, Err(Error::Invalid(Invalid::Priority))));
+    for e in [-1.0, 100_001.0, f64::NAN, f64::INFINITY] {
+        let bad = CardChanges { estimate: Some(Some(e)), ..Default::default() };
+        assert!(matches!(try_update(bad).await, Err(Error::Invalid(Invalid::Estimate))), "{e}");
+    }
+    let now = Utc::now();
+    let backwards = CardChanges {
+        start_at: Some(Some(now)),
+        due_at: Some(Some(now - chrono::Duration::hours(1))),
+        ..Default::default()
+    };
+    assert!(matches!(try_update(backwards).await, Err(Error::Invalid(Invalid::Dates))));
+
+    // A start date after an already stored due date is caught too.
+    let due = CardChanges { due_at: Some(Some(now)), ..Default::default() };
+    try_update(due).await.unwrap();
+    let late_start =
+        CardChanges { start_at: Some(Some(now + chrono::Duration::days(1))), ..Default::default() };
+    assert!(matches!(try_update(late_start).await, Err(Error::Invalid(Invalid::Dates))));
+    // Same moment is fine.
+    let same = CardChanges { start_at: Some(Some(now)), ..Default::default() };
+    try_update(same).await.unwrap();
 }

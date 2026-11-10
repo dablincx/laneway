@@ -77,6 +77,11 @@ impl From<Error> for ApiError {
                     }
                     Invalid::WipLimit => ("invalid_wip_limit", "the WIP limit must be at least 1"),
                     Invalid::Position => ("invalid_position", "can't place it there"),
+                    Invalid::Priority => {
+                        ("invalid_priority", "the priority must be low, medium, high or urgent")
+                    }
+                    Invalid::Dates => ("invalid_dates", "the start date is after the due date"),
+                    Invalid::Estimate => ("invalid_estimate", "the estimate must be between 0 and 100000"),
                 };
                 Self::new(S::UNPROCESSABLE_ENTITY, code, message)
             }

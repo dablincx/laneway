@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO cards (id, board_id, column_id, position, title, description, created_by, completed_at,\n                            created_at, updated_at, priority, start_at, due_at, estimate)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n         ON CONFLICT (id) DO UPDATE SET column_id = EXCLUDED.column_id, position = EXCLUDED.position,\n             title = EXCLUDED.title, description = EXCLUDED.description,\n             completed_at = EXCLUDED.completed_at, priority = EXCLUDED.priority,\n             start_at = EXCLUDED.start_at, due_at = EXCLUDED.due_at, estimate = EXCLUDED.estimate,\n             updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "30e7192aae7cdaec431c73ca3acd221731f29b658e92dbc94e9b22765729d38d"
+}

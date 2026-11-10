@@ -58,6 +58,11 @@ feature they belong to.
   - [ ] Swimlanes, drag and drop across lanes and boards
   - [ ] Archive/restore, board + card templates, duplicate board
 - [ ] Cards: markdown (rendered in the browser, no raw HTML), checklists, subtasks, labels, priority, dates, estimates, custom fields, assignees, watchers, comments, @mentions, attachments + covers (`LANEWAY_ATTACHMENT_MAX_SIZE_MB`, default 24, files in the board's directory under `attachments/<uuid>.<ext>`), relations, recurring cards, card aging
+  - [x] Markdown descriptions with write/preview (rendered in the browser, lazy-loaded, no raw HTML, safe links)
+  - [x] Priority (low, medium, high, urgent), start and due dates (overdue marker), estimate
+  - [ ] Checklists, subtasks, labels, custom fields
+  - [ ] Assignees, watchers, comments, @mentions
+  - [ ] Attachments + covers, relations, recurring cards, card aging
 - [ ] Views: board, list, table, my tasks; filter bar, search, command palette, keyboard shortcuts, dark mode toggle
 - [ ] Realtime updates over websockets + presence
 - [ ] Trash bin (`LANEWAY_TRASH_RETENTION_DAYS`)

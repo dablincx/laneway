@@ -4,7 +4,7 @@
 //! Access, for now: only the board's owner sees or changes it. Other users get "not found",
 //! the same as for a board that doesn't exist. The permission resolver replaces this in v0.3.
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use laneway_db::PgPool;
 use laneway_db::actions::Action;
 use laneway_db::boards::{self as db, Board, Card, Column};
@@ -52,6 +52,30 @@ fn description(value: &str) -> Result<String, Error> {
         return Err(Error::Invalid(Invalid::Description));
     }
     Ok(value.to_owned())
+}
+
+/// Card priorities, lowest first. No priority is `None`.
+pub const PRIORITIES: [&str; 4] = ["low", "medium", "high", "urgent"];
+
+fn priority(value: Option<String>) -> Result<Option<String>, Error> {
+    match value {
+        Some(p) if !PRIORITIES.contains(&p.as_str()) => Err(Error::Invalid(Invalid::Priority)),
+        other => Ok(other),
+    }
+}
+
+fn estimate(value: Option<f64>) -> Result<Option<f64>, Error> {
+    match value {
+        Some(e) if !e.is_finite() || !(0.0..=100_000.0).contains(&e) => {
+            Err(Error::Invalid(Invalid::Estimate))
+        }
+        other => Ok(other),
+    }
+}
+
+/// Postgres keeps microseconds; rounding first makes comparisons match what gets stored.
+fn timestamp(value: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    value.map(|t| DateTime::from_timestamp_micros(t.timestamp_micros()).unwrap_or(t))
 }
 
 fn wip_limit(value: Option<i32>) -> Result<Option<i32>, Error> {
@@ -383,6 +407,10 @@ pub async fn create_card(
         completed_at: column.is_done.then_some(now),
         created_at: now,
         updated_at: now,
+        priority: None,
+        start_at: None,
+        due_at: None,
+        estimate: None,
     };
     db::upsert_card(&mut *tx, &card).await?;
     record(&mut tx, actor, card.board_id, "card.create", to_json(&card), json!({ "delete_card": card.id }))
@@ -397,11 +425,15 @@ async fn writable_card(tx: &mut PgTransaction<'_>, actor: Actor, card_id: Uuid) 
     db::card(&mut **tx, card_id).await?.ok_or(Error::NotFound)
 }
 
-/// Fields to change on a card. `None` = leave as is.
+/// Fields to change on a card. `None` = leave as is; for the clearable ones `Some(None)` clears.
 #[derive(Debug, Clone, Default)]
 pub struct CardChanges {
     pub title: Option<String>,
     pub description: Option<String>,
+    pub priority: Option<Option<String>>,
+    pub start_at: Option<Option<DateTime<Utc>>>,
+    pub due_at: Option<Option<DateTime<Utc>>>,
+    pub estimate: Option<Option<f64>>,
 }
 
 pub async fn update_card(
@@ -419,8 +451,30 @@ pub async fn update_card(
     if let Some(d) = &changes.description {
         new.description = description(d)?;
     }
+    if let Some(p) = changes.priority {
+        new.priority = priority(p)?;
+    }
+    if let Some(s) = changes.start_at {
+        new.start_at = timestamp(s);
+    }
+    if let Some(d) = changes.due_at {
+        new.due_at = timestamp(d);
+    }
+    if let (Some(start), Some(due)) = (new.start_at, new.due_at)
+        && start > due
+    {
+        return Err(Error::Invalid(Invalid::Dates));
+    }
+    if let Some(e) = changes.estimate {
+        new.estimate = estimate(e)?;
+    }
     db::upsert_card(&mut *tx, &new).await?;
-    let fields = |c: &Card| json!({ "id": c.id, "title": c.title, "description": c.description });
+    let fields = |c: &Card| {
+        json!({
+            "id": c.id, "title": c.title, "description": c.description, "priority": c.priority,
+            "start_at": c.start_at, "due_at": c.due_at, "estimate": c.estimate,
+        })
+    };
     record(&mut tx, actor, new.board_id, "card.update", fields(&new), fields(&old)).await?;
     tx.commit().await?;
     Ok(new)

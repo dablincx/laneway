@@ -285,10 +285,20 @@ export interface components {
             created_by: string;
             /** @description Markdown. */
             description: string;
+            /** Format: date-time */
+            due_at?: string | null;
+            /**
+             * Format: double
+             * @description Story points or hours, whatever the board uses.
+             */
+            estimate?: number | null;
             /** Format: uuid */
             id: string;
             /** @description Sort key within the column. Cards are returned in order. */
             position: string;
+            priority?: components["schemas"]["Priority"] | null;
+            /** Format: date-time */
+            start_at?: string | null;
             title: string;
             /** Format: date-time */
             updated_at: string;
@@ -386,6 +396,8 @@ export interface components {
             is_done?: boolean;
             name: string;
         };
+        /** @enum {string} */
+        Priority: "low" | "medium" | "high" | "urgent";
         SetupRequest: {
             email: string;
             name: string;
@@ -400,7 +412,21 @@ export interface components {
             name?: string | null;
         };
         UpdateCardRequest: {
+            /** @description Markdown. */
             description?: string | null;
+            /**
+             * Format: date-time
+             * @description Must not be before `start_at`.
+             */
+            due_at?: string | null;
+            /**
+             * Format: double
+             * @description 0 to 100000.
+             */
+            estimate?: number | null;
+            priority?: components["schemas"]["Priority"] | null;
+            /** Format: date-time */
+            start_at?: string | null;
             title?: string | null;
         };
         UpdateColumnRequest: {

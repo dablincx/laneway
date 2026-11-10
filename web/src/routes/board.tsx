@@ -22,10 +22,18 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createRoute, redirect } from "@tanstack/react-router";
-import { Check, GripVertical, Settings2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { AlignLeft, CalendarDays, Check, GripVertical, Settings2 } from "lucide-react";
+import { lazy, Suspense, useRef, useState } from "react";
 
-import { boardApi, boardQuery, type Card, type Column } from "@/api/boards";
+import {
+  boardApi,
+  boardQuery,
+  type Card,
+  type CardChanges,
+  type Column,
+  type Priority,
+  priorities,
+} from "@/api/boards";
 import { errorMessage } from "@/api/errors";
 import { AppHeader } from "@/components/app-header";
 import { FormError } from "@/components/form";
@@ -42,6 +50,7 @@ import {
   moveColumn as moveColumnIn,
   placeOf,
 } from "@/lib/board-layout";
+import { formatDay, fromDateInput, isOverdue, toDateInput } from "@/lib/dates";
 import { rootRoute } from "./root";
 import { meQuery } from "./session";
 
@@ -449,20 +458,70 @@ function SortableCard({ card, onOpen }: { card: Card; onOpen: () => void }) {
 }
 
 function CardFace({ card, className }: { card: Card; className?: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const overdue = card.due_at != null && card.completed_at == null && isOverdue(card.due_at);
+  const hasBadges = card.priority || card.due_at || card.estimate != null || card.description;
   return (
     <div
-      className={`flex items-start gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent ${
+      className={`flex flex-col gap-1.5 rounded-md border bg-background px-3 py-2 text-sm shadow-xs hover:bg-accent ${
         className ?? ""
       }`}
     >
-      <span className={`flex-1 ${card.completed_at ? "text-muted-foreground line-through" : ""}`}>
-        {card.title}
-      </span>
-      {card.completed_at && (
-        <Check className="size-4 shrink-0 text-muted-foreground" aria-label={t("card-done")} />
+      <div className="flex items-start gap-2">
+        <span className={`flex-1 ${card.completed_at ? "text-muted-foreground line-through" : ""}`}>
+          {card.title}
+        </span>
+        {card.completed_at && (
+          <Check className="size-4 shrink-0 text-muted-foreground" aria-label={t("card-done")} />
+        )}
+      </div>
+      {hasBadges && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          {card.priority && <PriorityBadge priority={card.priority} />}
+          {card.due_at && (
+            <span
+              className={`inline-flex items-center gap-1 rounded px-1 ${overdue ? "bg-destructive/10 text-destructive" : ""}`}
+            >
+              <CalendarDays className="size-3" aria-hidden />
+              {t(overdue ? "card-overdue" : "card-due-on", { date: formatDay(card.due_at, locale) })}
+            </span>
+          )}
+          {card.estimate != null && (
+            <span
+              className="rounded border px-1"
+              title={t("card-estimate-badge", { estimate: card.estimate })}
+            >
+              {card.estimate}
+            </span>
+          )}
+          {card.description && <AlignLeft className="size-3" aria-label={t("card-has-description")} />}
+        </div>
       )}
     </div>
+  );
+}
+
+/** Spelled out so the translation check can see every key in use. */
+const priorityLabel: Record<Priority, string> = {
+  low: "card-priority-low",
+  medium: "card-priority-medium",
+  high: "card-priority-high",
+  urgent: "card-priority-urgent",
+};
+
+const priorityStyle: Record<Priority, string> = {
+  low: "border text-muted-foreground",
+  medium: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  high: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
+  urgent: "bg-destructive/15 text-destructive",
+};
+
+function PriorityBadge({ priority }: { priority: Priority }) {
+  const { t } = useI18n();
+  return (
+    <span className={`rounded px-1.5 font-medium ${priorityStyle[priority]}`}>
+      {t(priorityLabel[priority])}
+    </span>
   );
 }
 
@@ -580,9 +639,10 @@ function CardDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const save = useBoardMutation(boardId, (title: string, description: string) =>
-    boardApi.updateCard(card.id, title, description),
-  );
+  const [description, setDescription] = useState(card.description);
+  // Cards with a description open on the rendered text, empty ones on the editor.
+  const [preview, setPreview] = useState(card.description.trim() !== "");
+  const save = useBoardMutation(boardId, (changes: CardChanges) => boardApi.updateCard(card.id, changes));
   const move = useBoardMutation(boardId, (columnId: string) =>
     boardApi.moveCard(card.id, columnId, 1_000_000),
   );
@@ -591,16 +651,28 @@ function CardDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent aria-describedby={undefined}>
+      <DialogContent aria-describedby={undefined} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogTitle>{t("card-edit-heading")}</DialogTitle>
         <form
           className="flex flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
             const form = new FormData(e.currentTarget);
-            save.mutate([String(form.get("title") ?? ""), String(form.get("description") ?? "")], {
-              onSuccess: onClose,
-            });
+            const text = (key: string) => String(form.get(key) ?? "");
+            const estimate = text("estimate").trim();
+            save.mutate(
+              [
+                {
+                  title: text("title"),
+                  description,
+                  priority: (text("priority") || null) as Priority | null,
+                  start_at: fromDateInput(text("start_at")),
+                  due_at: fromDateInput(text("due_at")),
+                  estimate: estimate === "" ? null : Number(estimate),
+                },
+              ],
+              { onSuccess: onClose },
+            );
           }}
         >
           <div className="flex flex-col gap-2">
@@ -608,23 +680,110 @@ function CardDialog({
             <Input id="card-title" name="title" defaultValue={card.title} required />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="card-description">{t("card-field-description")}</Label>
-            <Textarea id="card-description" name="description" defaultValue={card.description} />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="card-description">{t("card-field-description")}</Label>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={preview ? "ghost" : "secondary"}
+                  aria-pressed={!preview}
+                  onClick={() => setPreview(false)}
+                >
+                  {t("card-description-write")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={preview ? "secondary" : "ghost"}
+                  aria-pressed={preview}
+                  onClick={() => setPreview(true)}
+                >
+                  {t("card-description-preview")}
+                </Button>
+              </div>
+            </div>
+            {preview ? (
+              <div className="min-h-24 rounded-md border px-3 py-2" data-testid="card-description-preview">
+                {description.trim() ? (
+                  <Suspense fallback={<p className="text-sm whitespace-pre-wrap">{description}</p>}>
+                    <Markdown text={description} />
+                  </Suspense>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("card-description-empty")}</p>
+                )}
+              </div>
+            ) : (
+              <>
+                <Textarea
+                  id="card-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="min-h-40 font-mono text-sm"
+                  aria-describedby="card-description-help"
+                />
+                <p id="card-description-help" className="text-xs text-muted-foreground">
+                  {t("card-description-help")}
+                </p>
+              </>
+            )}
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="card-column">{t("card-field-column")}</Label>
-            <select
-              id="card-column"
-              className="h-9 rounded-md border bg-transparent px-2 text-sm"
-              value={card.column_id}
-              onChange={(e) => move.mutate([e.target.value])}
-            >
-              {columns.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="card-column">{t("card-field-column")}</Label>
+              <select
+                id="card-column"
+                className="h-9 rounded-md border bg-transparent px-2 text-sm"
+                value={card.column_id}
+                onChange={(e) => move.mutate([e.target.value])}
+              >
+                {columns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="card-priority">{t("card-field-priority")}</Label>
+              <select
+                id="card-priority"
+                name="priority"
+                className="h-9 rounded-md border bg-transparent px-2 text-sm"
+                defaultValue={card.priority ?? ""}
+              >
+                <option value="">{t("card-priority-none")}</option>
+                {priorities.map((p) => (
+                  <option key={p} value={p}>
+                    {t(priorityLabel[p])}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="card-start">{t("card-field-start")}</Label>
+              <Input id="card-start" name="start_at" type="date" defaultValue={toDateInput(card.start_at)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="card-due">{t("card-field-due")}</Label>
+              <Input id="card-due" name="due_at" type="date" defaultValue={toDateInput(card.due_at)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="card-estimate">{t("card-field-estimate")}</Label>
+              <Input
+                id="card-estimate"
+                name="estimate"
+                type="number"
+                min={0}
+                max={100000}
+                step="any"
+                defaultValue={card.estimate ?? ""}
+                aria-describedby="card-estimate-hint"
+              />
+              <p id="card-estimate-hint" className="text-xs text-muted-foreground">
+                {t("card-field-estimate-hint")}
+              </p>
+            </div>
           </div>
           <FormError message={error ? errorMessage(t, error) : null} />
           <div className="flex justify-between gap-2">
@@ -651,6 +810,9 @@ function CardDialog({
     </Dialog>
   );
 }
+
+/** The markdown renderer is its own chunk, loaded the first time a description is shown. */
+const Markdown = lazy(() => import("@/components/markdown"));
 
 /** Text that turns into an input on click and saves on Enter or blur. */
 function InlineEdit({
